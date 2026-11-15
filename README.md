@@ -15,7 +15,7 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 ## Requirements
 
 - Windows 10 or 11
-- Python 3.11 or newer from [python.org](https://www.python.org/downloads/) (tick **"Add python.exe to PATH"** during install)
+- Python 3.12. With the Python install manager from [python.org](https://www.python.org/downloads/), run `py install 3.12`. Newer versions (3.15) are missing some required packages for now.
 - A microphone
 - About 1 GB of free disk space and 8 GB of RAM or more
 
