@@ -1,4 +1,4 @@
-"""LocalFlow: hold a key, speak, release, and the text is pasted where you type."""
+"""Hushtype: hold a key, speak, release, and the text is pasted where you type."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import sys
 import threading
 from pathlib import Path
 
-from localflow.cleanup import clean
-from localflow.config import load_config
+from hushtype.cleanup import clean
+from hushtype.config import load_config
 
-log = logging.getLogger("localflow")
+log = logging.getLogger("hushtype")
 
 
 class App:
@@ -36,7 +36,7 @@ class App:
         self.recorder.begin()
         self._state("recording")
         if self.cfg.beep:
-            from localflow.output import beep
+            from hushtype.output import beep
             beep(True)
 
     def _on_up(self) -> None:
@@ -44,7 +44,7 @@ class App:
             return
         audio = self.recorder.end()
         if self.cfg.beep:
-            from localflow.output import beep
+            from hushtype.output import beep
             beep(False)
         if len(audio) < self.cfg.min_duration * self.cfg.sample_rate:
             self._state("idle")
@@ -53,7 +53,7 @@ class App:
         self.jobs.put(audio)
 
     def _worker(self) -> None:
-        from localflow.output import paste_text
+        from hushtype.output import paste_text
 
         while True:
             audio = self.jobs.get()
@@ -75,9 +75,9 @@ class App:
                     self._state("idle")
 
     def _load(self) -> None:
-        from localflow.audio import Recorder
-        from localflow.hotkey import PushToTalk
-        from localflow.transcriber import Transcriber
+        from hushtype.audio import Recorder
+        from hushtype.hotkey import PushToTalk
+        from hushtype.transcriber import Transcriber
 
         try:
             log.info("Loading model '%s' (first run downloads it)...", self.cfg.model_name)
@@ -107,7 +107,7 @@ class App:
             self.tray.stop()
 
     def run(self) -> None:
-        from localflow.tray import Tray
+        from hushtype.tray import Tray
 
         self.tray = Tray(on_quit=self.quit)
 
@@ -122,7 +122,7 @@ def transcribe_file(path: str, config_path: Path | None) -> None:
     """Debug helper: transcribe an audio file without the hotkey or tray."""
     from faster_whisper import decode_audio
 
-    from localflow.transcriber import Transcriber
+    from hushtype.transcriber import Transcriber
 
     cfg = load_config(config_path)
     t = Transcriber(cfg.model_name, cfg.device, cfg.compute_type, cfg.beam_size, cfg.vocabulary)
@@ -132,7 +132,7 @@ def transcribe_file(path: str, config_path: Path | None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="localflow", description=__doc__)
+    parser = argparse.ArgumentParser(prog="hushtype", description=__doc__)
     parser.add_argument("--config", type=Path, help="path to config.toml")
     parser.add_argument("--file", help="transcribe an audio file and exit (for testing)")
     parser.add_argument("-v", "--verbose", action="store_true")

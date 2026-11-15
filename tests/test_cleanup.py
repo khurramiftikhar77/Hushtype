@@ -1,4 +1,4 @@
-from localflow.cleanup import clean
+from hushtype.cleanup import clean
 
 
 def test_removes_fillers():

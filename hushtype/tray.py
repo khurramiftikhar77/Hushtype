@@ -14,10 +14,10 @@ COLORS = {
     "working": (219, 154, 4),
 }
 TITLES = {
-    "loading": "LocalFlow: loading model...",
-    "idle": "LocalFlow: hold Right Alt to dictate",
-    "recording": "LocalFlow: listening",
-    "working": "LocalFlow: transcribing",
+    "loading": "Hushtype: loading model...",
+    "idle": "Hushtype: hold Right Alt to dictate",
+    "recording": "Hushtype: listening",
+    "working": "Hushtype: transcribing",
 }
 
 
@@ -36,7 +36,7 @@ class Tray:
     def __init__(self, on_quit: Callable[[], None]):
         self._images = {k: _icon(c) for k, c in COLORS.items()}
         self.icon = pystray.Icon(
-            "LocalFlow",
+            "Hushtype",
             self._images["loading"],
             TITLES["loading"],
             menu=pystray.Menu(pystray.MenuItem("Quit", lambda: on_quit())),

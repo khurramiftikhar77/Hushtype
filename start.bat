@@ -2,12 +2,12 @@
 REM First run: creates a virtual environment and installs dependencies.
 cd /d "%~dp0"
 if not exist .venv (
-    echo Setting up LocalFlow, this takes a few minutes the first time...
+    echo Setting up Hushtype, this takes a few minutes the first time...
     python -m venv .venv || goto :error
     .venv\Scripts\python -m pip install --upgrade pip
     .venv\Scripts\pip install -e . || goto :error
 )
-.venv\Scripts\python -m localflow %*
+.venv\Scripts\python -m hushtype %*
 goto :eof
 
 :error
