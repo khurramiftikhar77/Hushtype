@@ -1,0 +1,39 @@
+# LocalFlow settings. Restart the app after editing.
+
+[hotkey]
+# Hold this key to record, release to transcribe and paste.
+# Options: "alt_r", "ctrl_r", "shift_r", "f13" ... "f24", "caps_lock"
+key = "alt_r"
+
+[model]
+# English-only models are more accurate for English.
+# "base.en"   fastest, lower accuracy
+# "small.en"  good balance on a laptop CPU (default)
+# "medium.en" most accurate, roughly 2-3x slower than small.en
+name = "small.en"
+device = "cpu"
+compute_type = "int8"
+beam_size = 5
+
+[audio]
+sample_rate = 16000
+# Ignore presses shorter than this (seconds), e.g. accidental taps.
+min_duration = 0.4
+# Audio kept from just before the key press so the first word is not cut off.
+preroll = 0.3
+
+[output]
+# Remove "um", "uh", "erm" and similar fillers.
+remove_fillers = true
+# Add a space after pasted text so you can keep dictating.
+trailing_space = true
+# Short beep when recording starts and stops.
+beep = true
+
+[vocabulary]
+# Names and terms Whisper should spell correctly.
+words = ["LinkedIn"]
+
+# Fix words Whisper keeps getting wrong: "what it hears" = "what you want"
+[replacements]
+"linked in" = "LinkedIn"
