@@ -102,7 +102,13 @@ select option { color: #0B1220; }
 /* home */
 .hero { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 30px; padding: 32px; border-radius: 28px; box-shadow: var(--shine), 0 30px 70px rgba(4,8,20,.3); }
 .orb { width: 112px; height: 112px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 40px rgba(94,234,212,.35); transition: box-shadow .2s; }
-.orb > div { width: 76px; height: 76px; border-radius: 50%; background: var(--solid); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(4,8,20,.3); }
+button.orb { padding: 0; cursor: pointer; color: inherit; font: inherit; }
+.orb > div { flex: 0 0 76px; min-width: 76px; }
+button.orb:hover > div { transform: scale(1.05); box-shadow: 0 10px 30px rgba(4,8,20,.4); }
+button.orb:active > div { transform: scale(.97); }
+button.orb:disabled { cursor: default; opacity: .7; }
+.orb > div { transition: transform .12s, background .15s; height: 76px; border-radius: 50%; background: var(--solid); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(4,8,20,.3); }
+.orb.rec > div { background: #F87171; }
 .orb.rec { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 50px rgba(248,113,113,.6); animation: pulse 1.2s ease-in-out infinite; }
 .orb.busy { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 50px rgba(165,180,252,.6); }
 @keyframes pulse { 50% { transform: scale(1.05); } }
@@ -260,17 +266,23 @@ function projectSelect(id = "active-project") {
    <select id="${id}" data-active-project>${S.projects.map((p) => `<option value="${p.id}" ${p.id === S.settings.active_project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>`;
 }
 
+function orbInner() {
+  const rec = S.live && S.live.state === "recording";
+  const stop = '<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="3" fill="#FFFFFF"/></svg>';
+  return `<div>${rec ? stop : icon("mic", 30, "#0B1220")}</div>`;
+}
+
 function heroContent() {
   const l = S.live || { state: "loading", message: "Starting..." };
   const k = keysKbd();
-  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Press ${k} again to finish.` : "Let go to paste."}</p>`;
-  if (l.state === "working") return `<h2>Transcribing...</h2><p class="sub">Your text will appear where your cursor is.</p>`;
+  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Press ${k} again to finish.` : (l.from_app ? "Click the button again to finish. The text will be copied." : S.settings.auto_paste ? "Let go to paste." : "Let go and the text is copied.")}</p>`;
+  if (l.state === "working") return `<h2>Transcribing...</h2><p class="sub">${S.settings.auto_paste ? "Your text will appear where your cursor is." : "Your text will be copied, ready for Ctrl+V."}</p>`;
   if (l.state === "model" || l.state === "loading") {
     const lang = Object.keys(l.downloads || {})[0];
     return `<h2>${esc(l.message || "Starting...")}</h2>${lang ? downloadBar(lang) : ""}<p class="sub">${lang ? "This download happens only once. After that the model loads from your laptop, offline." : "One moment."}</p>`;
   }
   if (l.state === "error") return `<h2>Hushtype needs attention</h2><p class="sub">${esc(l.message)}</p><div><button class="btn solid" data-go="settings">Open Settings</button></div>`;
-  return `<h2>Hold ${k} and speak</h2><p class="sub" style="max-width:56ch">Release the key and your words are typed where your cursor is: LinkedIn, Gmail, Outlook, anywhere. Punctuation is added automatically.</p>`;
+  return `<h2>Hold ${k} and speak</h2><p class="sub" style="max-width:58ch">${S.settings.auto_paste ? "Let go and your words are typed where your cursor is." : "Let go and your words are copied. Press <b>Ctrl+V</b> to paste them anywhere: LinkedIn, Gmail, Outlook."} Punctuation is added automatically. You can also click the microphone.</p>`;
 }
 
 function viewHome() {
@@ -282,7 +294,7 @@ function viewHome() {
     <div class="row">${projectSelect()}${langToggle()}</div></header>
 
   <section class="glass card hero" aria-live="polite">
-    <div class="orb ${orb}" id="orb"><div>${icon("mic", 30, "#0B1220")}</div></div>
+    <button type="button" class="orb ${orb}" id="orb" data-record aria-label="${l.state === "recording" ? "Stop recording" : "Start recording"}" title="Click to dictate here. The text is copied for you to paste.">${orbInner()}</button>
     <div style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:12px" id="hero">${heroContent()}</div>
     <div class="row" style="flex-basis:100%;gap:8px">
       <span class="chip"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span>
@@ -310,10 +322,10 @@ function viewHome() {
   <section class="glass card" aria-labelledby="how-h">
     <h2 id="how-h">How to use Hushtype</h2>
     <div class="howto">
-      <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding, let go to paste where your cursor is. The text also stays copied, so Ctrl+V works anywhere.</p></div>
+      <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding and let go. The text is copied: press Ctrl+V to paste it anywhere. Or click the microphone above.</p></div>
       <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: English, Urdu, Punjabi.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Paste again.</b> Re-pastes your last dictation, for when it landed in the wrong box.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Copy again.</b> Copies your last dictation again, if you copied something else in between.</p></div>
       <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
       <div class="how"><div class="k"><span class="chip">Projects</span></div><p><b>Stay organised.</b> Dictations go to the active project, or to the project whose app rule matches (Outlook goes to Email).</p></div>
@@ -445,14 +457,14 @@ function viewSettings() {
   <section class="glass card" aria-labelledby="h-keys" style="gap:0"><h2 id="h-keys" style="margin-bottom:8px">Shortcut and language</h2>
     ${sel("hotkey", "Dictation key", "Hold to record, release to paste", S.options.hotkeys)}
     ${sw("hands_free", "Hands-free double-tap", isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])} to record without holding` : `Double-tap ${esc(keyName())} to record without holding`)}
-    ${sw("language_switch_key", `${esc(modName())} + L and ${esc(modName())} + V`, "Switch language, and paste the last dictation again")}
+    ${sw("language_switch_key", `${esc(modName())} + L and ${esc(modName())} + V`, "Switch language, and copy the last dictation again")}
     ${modelRow("en")}
     ${modelRow("ur")}
   </section>
 
   <section class="glass card" aria-labelledby="h-text" style="gap:0"><h2 id="h-text" style="margin-bottom:8px">Text</h2>
     ${sw("spoken_commands", "Line break commands", 'Say "new line" or "new paragraph". Punctuation is always automatic.')}
-    ${sw("auto_paste", "Paste automatically", "Types the text where your cursor is. Turn off to only copy it and paste yourself with Ctrl+V")}
+    ${sw("auto_paste", "Also paste automatically", "Off (recommended): the text is only copied and you paste with Ctrl+V. On: Hushtype also pastes it where your cursor is")}
     ${sw("keep_on_clipboard", "Keep the text copied", "Your dictation stays on the clipboard, so Ctrl+V pastes it again anywhere")}
     ${sw("trailing_space", "Add a space after text", "So you can keep dictating in the same box")}
     <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>My words</b><span>Names and terms Hushtype should spell correctly</span></div>
@@ -549,7 +561,7 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
@@ -574,6 +586,7 @@ document.addEventListener("click", async (e) => {
   if ("addSnip" in d) { const sn = { ...S.settings.snippets }; let k = "new snippet", i = 2; while (k in sn) k = `new snippet ${i++}`; sn[k] = ""; S.settings = await api().set_settings({ snippets: sn }); render(); return; }
   if (d.rmSnip) { const e2 = Object.entries(S.settings.snippets); e2.splice(Number(d.rmSnip), 1); S.settings = await api().set_settings({ snippets: Object.fromEntries(e2) }); render(); return; }
   if ("openFolder" in d) return api().open_data_folder();
+  if ("record" in d) { t.disabled = true; await api().toggle_recording(); return; }  // the live poll redraws it
   if ("checkUpdate" in d) { S.upd = { status: "checking" }; renderUpdate(); S.upd = await api().check_update(); renderUpdate(); return; }
   if ("installUpdate" in d) {
     S.upd = await api().install_update(); renderUpdate();
@@ -640,7 +653,12 @@ async function poll() {
       if (prev !== S.live.state) {
         const hero = $("#hero"), orb = $("#orb");
         if (hero) hero.innerHTML = heroContent();
-        if (orb) orb.className = "orb " + (S.live.state === "recording" ? "rec" : (S.live.state === "working" || S.live.state === "model") ? "busy" : "");
+        if (orb) {
+          orb.className = "orb " + (S.live.state === "recording" ? "rec" : (S.live.state === "working" || S.live.state === "model") ? "busy" : "");
+          orb.innerHTML = orbInner();
+          orb.disabled = !["idle", "recording"].includes(S.live.state);
+          orb.setAttribute("aria-label", S.live.state === "recording" ? "Stop recording" : "Start recording");
+        }
       } else if (S.live.state === "recording") { const tm = $("#hero-timer"); if (tm) tm.textContent = fmtDur(S.live.elapsed); }
     }
     if (S.live.version !== S.version) {

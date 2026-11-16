@@ -200,6 +200,15 @@ class Api:
         winutil.open_folder(data_dir())
         return True
 
+    def toggle_recording(self) -> dict:
+        """The microphone button on Home: click to start, click again to stop."""
+        e = self._e
+        if e.live_state.state == "recording":
+            e.finish_recording()
+        elif e.live_state.state == "idle":
+            e.begin_recording(from_app=True)
+        return e.live()
+
     def hide_window(self) -> bool:
         self._gui.hide_main()
         return True

@@ -33,6 +33,7 @@ class Job:
     hwnd: int
     app: str
     duration: float
+    from_app: bool = False  # started with the button in Hushtype's window: copy, don't paste
 
 
 @dataclass
@@ -178,6 +179,7 @@ class Engine:
             "elapsed": (time.monotonic() - s.started) if s.state == "recording" else 0.0,
             "level": self.recorder.level if (self.recorder and s.state == "recording") else 0.0,
             "hands_free": s.hands_free,
+            "from_app": bool(self._target and self._target.get("from_app")),
             "project": {k: project.get(k) for k in ("id", "name", "color", "language")},
             "language": s.language if s.state in ("recording", "working") else project.get("language", "en"),
             "flash": flash,
@@ -277,7 +279,7 @@ class Engine:
         project = (self.store.project(pid) if pid else None) or self._active_project()
         return {"hwnd": hwnd, "app": friendly_app(title, exe), "project": project}
 
-    def begin_recording(self) -> None:
+    def begin_recording(self, from_app: bool = False) -> None:
         state = self.live_state.state
         if state in ("loading",):
             self.flash("info", "Still starting, one moment")
@@ -285,7 +287,10 @@ class Engine:
         if self.recorder is None:
             self.flash("warn", "No microphone. Check Settings.")
             return
-        target = self._pick_target()
+        if from_app:  # the button in Hushtype's own window: no app rules, no pasting
+            target = {"hwnd": 0, "app": "Hushtype", "project": self._active_project(), "from_app": True}
+        else:
+            target = self._pick_target()
         self._target = target
         self.recorder.begin()
         if self.settings["beep"]:
@@ -329,7 +334,8 @@ class Engine:
             return
         self._set("working", "Transcribing")
         self._jobs.put(Job(audio=audio, project=target["project"], language=self.live_state.language,
-                           hwnd=target["hwnd"], app=target["app"], duration=duration))
+                           hwnd=target["hwnd"], app=target["app"], duration=duration,
+                           from_app=bool(target.get("from_app"))))
 
     def toggle_language(self) -> None:
         """Cycles the active project's language: English, Urdu, Punjabi."""
@@ -348,11 +354,18 @@ class Engine:
             self.download_model(language)
 
     def repaste(self) -> None:
-        if self.last_text and self._paste:
+        """Modifier + V: copies the last dictation again (and pastes it if auto-paste is on)."""
+        if not self.last_text:
+            last = self.store.last()
+            self.last_text = last["text"] if last else None
+        if not self.last_text:
+            self.flash("info", "Nothing to copy yet")
+        elif self.settings["auto_paste"] and self._paste:
             self._paste(self.last_text, self.settings["keep_on_clipboard"])
             self.flash("pasted", "Pasted again")
-        else:
-            self.flash("info", "Nothing to paste yet")
+        elif self._copy:
+            self._copy(self.last_text)
+            self.flash("pasted", "Copied again. Press Ctrl+V")
 
     # ---------- worker ----------
 
@@ -389,7 +402,11 @@ class Engine:
         self.last_text = text
         words = len(text.split())
         plural = "s" if words != 1 else ""
-        if s["auto_paste"]:
+        if job.from_app:
+            if self._copy:
+                self._copy(text)
+            self.flash("pasted", f"Copied · {words} word{plural} · Ctrl+V to paste")
+        elif s["auto_paste"]:
             if self._focus:
                 self._focus(job.hwnd)
             if self._paste:
@@ -398,7 +415,7 @@ class Engine:
         else:
             if self._copy:
                 self._copy(text)
-            self.flash("pasted", f"Copied · {words} word{plural}. Press Ctrl+V")
+            self.flash("pasted", f"Copied · {words} word{plural} · Ctrl+V to paste")
         if s["save_history"]:
             return self.store.add(project_id=p["id"], language=job.language, duration=round(job.duration, 2),
                                   process_time=round(took, 2), text=text.strip(), raw_text=raw, app=job.app)

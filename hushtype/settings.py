@@ -44,7 +44,7 @@ MODEL_BYTES = {
     "tiny.en": 75_000_000, "base.en": 145_000_000, "small.en": 484_000_000, "medium.en": 1_530_000_000,
     "small": 484_000_000, "medium": 1_530_000_000, "large-v3-turbo": 1_620_000_000,
 }
-SETTINGS_VERSION = 2
+SETTINGS_VERSION = 3
 
 HOTKEYS = {
     "alt_r+space": "Right Alt + Space",
@@ -72,7 +72,7 @@ DEFAULTS: dict = {
     "min_duration": 0.4,
     "preroll": 0.3,
     "trailing_space": True,
-    "auto_paste": True,  # paste into the app you are typing in
+    "auto_paste": False,  # off: only copy, you paste with Ctrl+V. On: also paste into the app
     "keep_on_clipboard": True,  # leave the dictation on the clipboard for Ctrl+V
     "beep": False,
     "show_pill": True,
@@ -119,6 +119,10 @@ class Settings:
         if version < 2 and stored.get("hotkey", "alt_r") == "alt_r":
             # v2: the default shortcut became Right Alt + Space.
             self._data["hotkey"] = "alt_r+space"
+        if version < 3:
+            # v3: dictations are only copied by default; you paste with Ctrl+V.
+            self._data["auto_paste"] = False
+            self._data["keep_on_clipboard"] = True
         self._data["settings_version"] = SETTINGS_VERSION
 
     def __getitem__(self, key: str):

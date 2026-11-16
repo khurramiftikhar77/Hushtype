@@ -53,6 +53,7 @@ class FakeHotkeys:
 @pytest.fixture
 def env(tmp_path):
     settings = Settings(tmp_path / "settings.json")
+    settings.update({"auto_paste": True})  # most tests check the paste path
     store = Store(tmp_path / "db.sqlite")
     pasted, focused = [], []
     loaded = []
@@ -185,6 +186,17 @@ def test_delete_project_moves_items_to_inbox(env):
         store.delete_project(1)
 
 
+def test_mic_button_copies_instead_of_pasting(env):
+    eng, settings, store, pasted, focused, *_ , window = env
+    store.create_project("Email", rules=["chrome"])  # rules must not apply to the button
+    eng.begin_recording(from_app=True)
+    eng.finish_recording()
+    run(eng)
+    assert pasted == ["COPY:Thanks for sharing this,\n\nKhurram "]
+    assert focused == []
+    assert store.last()["app"] == "Hushtype" and store.last()["project_id"] == 1
+
+
 def test_copy_only_mode(env):
     eng, settings, store, pasted, focused, *_ = env
     settings.update({"auto_paste": False})
@@ -221,11 +233,26 @@ def test_download_progress_is_reported(tmp_path):
     assert eng.live()["downloads"] == {}
 
 
+def test_copy_only_is_the_default(tmp_path):
+    assert Settings(tmp_path / "fresh.json")["auto_paste"] is False
+
+
+def test_repaste_copies_when_auto_paste_is_off(env):
+    eng, settings, store, pasted, *_ = env
+    settings.update({"auto_paste": False})
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    eng.repaste()
+    assert pasted[-1].startswith("COPY:") and len(pasted) == 2
+    assert "Copied again" in eng.live()["flash"]["text"]
+
+
 def test_settings_migrate_old_shortcut(tmp_path):
     import json
     path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"hotkey": "alt_r"}))
-    assert Settings(path)["hotkey"] == "alt_r+space"
+    path.write_text(json.dumps({"hotkey": "alt_r", "auto_paste": True}))
+    s = Settings(path)
+    assert s["hotkey"] == "alt_r+space"
+    assert s["auto_paste"] is False  # v3 migration: copy only
     path.write_text(json.dumps({"hotkey": "f9"}))
     assert Settings(path)["hotkey"] == "f9"
 

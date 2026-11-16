@@ -1,19 +1,20 @@
 # Hushtype
 
-Offline voice dictation for Windows. Hold **Right Alt + Space**, speak, let go, and your words are typed wherever your cursor is: LinkedIn, Gmail, Outlook, Word, WhatsApp, anywhere.
+Offline voice dictation for Windows. Hold **Right Alt + Space**, speak, let go, and your words are copied, ready to paste with **Ctrl+V** into LinkedIn, Gmail, Outlook, Word, WhatsApp, anywhere. Or click the microphone in the app.
 
 Speech is transcribed on your own computer with [faster-whisper](https://github.com/SYSTRAN/faster-whisper), an open-source version of OpenAI's Whisper. No audio or text leaves your machine.
 
 ## Features
 
-- **Dictate anywhere:** works in any app that accepts text. The text also stays copied, so Ctrl+V pastes it again anywhere
+- **Dictate anywhere:** the text is copied to your clipboard; paste it with Ctrl+V wherever you want. Optional: paste automatically
+- **Click to dictate:** the microphone button on Home starts and stops recording
 - **English, Urdu and Punjabi:** switch per project, or with Right Alt + L. Punjabi (Pakistani) is written in Urdu script and is experimental
 - **Automatic punctuation:** commas, full stops and question marks are added for you. Say "new line" or "new paragraph" for line breaks.
 - **Projects:** group dictations (Email, Work, Poetry...). Each project has its own language and text style, and can auto-file by app (Outlook goes to Email).
 - **History:** search, filter, copy, move between projects. A Combined view joins a project into one document.
 - **Snippets:** say "my signature" and get your full signature
 - **Hands-free:** hold Right Alt and double-tap Space to keep recording without holding
-- **Paste again:** Right Alt + V re-pastes your last dictation
+- **Copy again:** Right Alt + V copies your last dictation again
 - **Recording pill:** a small timer and sound wave at the bottom of the screen while you talk
 - **Filler removal:** "um", "uh", "erm" are dropped
 - **Runs in the tray** and can start with Windows
@@ -46,10 +47,11 @@ The first run creates a virtual environment and installs everything.
 
 | Do this | What happens |
 |---|---|
-| Hold **Right Alt + Space**, speak, let go | Your words are pasted where the cursor is, and stay copied |
+| Hold **Right Alt + Space**, speak, let go | Your words are copied. Press Ctrl+V to paste them |
+| Click the microphone on Home | Starts recording; click again to stop and copy |
 | Hold **Right Alt**, double-tap **Space** | Hands-free recording. Press the shortcut again to finish |
 | **Right Alt + L** | Switch the active project between English, Urdu and Punjabi |
-| **Right Alt + V** | Paste your last dictation again |
+| **Right Alt + V** | Copy your last dictation again |
 | Say "new line" / "new paragraph" | Line breaks. Punctuation is automatic |
 | Say a snippet trigger, e.g. "my signature" | Inserts the saved text |
 
@@ -94,7 +96,7 @@ Hushtype is built so that nothing you say leaves your computer.
 
 - **Made-up text like "You" or "Thank you".** Hushtype is not getting clean audio. In Settings, pick your microphone and press **Test microphone**: speak and check that the level bar moves to about the middle. Bluetooth headsets often give poor audio on Windows; the laptop microphone is usually better.
 - **Nothing happens when I hold Right Alt + Space.** Check the tray icon: grey means it is still loading the model. If you use a keyboard layout where Right Alt is AltGr, pick another shortcut in Settings.
-- **Text goes to the wrong place.** Press Right Alt + V in the right box to paste it again.
+- **I copied something else in between.** Press Right Alt + V to copy your last dictation again.
 - **Too slow.** In Settings, choose the Fast model.
 - **Not accurate enough.** Choose the Accurate model, and add names and terms under My words.
 - **Logs:** `%APPDATA%\Hushtype\hushtype.log`
