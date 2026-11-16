@@ -9,7 +9,13 @@ if not exist .venv (
     .venv\Scripts\python -m pip install --upgrade pip
     .venv\Scripts\pip install -e . || goto :error
 )
-.venv\Scripts\python -m hushtype %*
+if "%~1"=="" (
+    rem Normal start: no terminal window, Hushtype lives in the tray.
+    start "" .venv\Scripts\pythonw.exe -m hushtype
+) else (
+    rem With options like -v or --mic-test: run in this terminal.
+    .venv\Scripts\python -m hushtype %*
+)
 goto :eof
 
 :nopython
