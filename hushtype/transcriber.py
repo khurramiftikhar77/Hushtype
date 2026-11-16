@@ -13,6 +13,8 @@ log = logging.getLogger(__name__)
 
 # No usage statistics to Hugging Face, ever.
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+# Plain HTTPS downloads into the cache, so the progress bar can watch them grow.
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 # Segments this unsure are almost always Whisper guessing at noise
 # ("You", "Thank you.", "Facebook.com"), so they are dropped instead of pasted.
@@ -36,6 +38,21 @@ def model_on_disk(model_name: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def model_cache_bytes(model_name: str) -> int:
+    """Bytes of this model already in the download cache (finished or partial)."""
+    from pathlib import Path
+
+    try:
+        from faster_whisper.utils import _MODELS
+        from huggingface_hub import constants
+
+        repo = _MODELS.get(model_name, model_name)
+        folder = Path(constants.HF_HUB_CACHE) / ("models--" + repo.replace("/", "--"))
+        return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file() and not f.is_symlink())
+    except Exception:
+        return 0
 
 
 class Transcriber:

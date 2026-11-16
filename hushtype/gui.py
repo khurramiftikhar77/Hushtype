@@ -203,6 +203,25 @@ class Api:
         self._gui.hide_main()
         return True
 
+    # ----- updates (only when the user asks) -----
+
+    def check_update(self) -> dict:
+        return self._gui.updater.check()
+
+    def install_update(self) -> dict:
+        self._gui.updater.install(on_ready_to_quit=self._gui.quit)
+        return self._gui.updater.state
+
+    def update_status(self) -> dict:
+        return self._gui.updater.state
+
+    def open_url(self, url: str) -> bool:
+        import webbrowser
+
+        if url.startswith("https://github.com/"):
+            webbrowser.open(url)
+        return True
+
 
 class Gui:
     def __init__(self, settings: Settings, store: Store, engine: Engine, start_hidden: bool = False):
@@ -211,6 +230,9 @@ class Gui:
         self.engine = engine
         self.start_hidden = start_hidden
         self.api = Api(self)
+        from hushtype.updater import Updater
+
+        self.updater = Updater()
         self.main = None
         self.pill = None
         self.tray = None

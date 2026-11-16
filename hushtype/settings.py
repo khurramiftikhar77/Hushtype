@@ -35,8 +35,16 @@ MODEL_SIZES = {
     "base.en": "150 MB", "small.en": "490 MB", "medium.en": "1.5 GB",
     "small": "490 MB", "medium": "1.5 GB", "large-v3-turbo": "1.6 GB",
 }
+# Approximate download sizes in bytes, for the progress bar.
+MODEL_BYTES = {
+    "tiny.en": 75_000_000, "base.en": 145_000_000, "small.en": 484_000_000, "medium.en": 1_530_000_000,
+    "small": 484_000_000, "medium": 1_530_000_000, "large-v3-turbo": 1_620_000_000,
+}
+SETTINGS_VERSION = 2
 
 HOTKEYS = {
+    "alt_r+space": "Right Alt + Space",
+    "ctrl_r+space": "Right Ctrl + Space",
     "alt_r": "Right Alt",
     "ctrl_r": "Right Ctrl",
     "shift_r": "Right Shift",
@@ -49,7 +57,8 @@ HOTKEYS = {
 REVIEW_INTERVALS = {7: "Every week", 30: "Every month", 0: "Never"}
 
 DEFAULTS: dict = {
-    "hotkey": "alt_r",
+    "settings_version": SETTINGS_VERSION,
+    "hotkey": "alt_r+space",
     "language_switch_key": True,  # hotkey + L flips the active project's language
     "mic": "",  # device name; empty = Windows default
     "en_model": "small.en",
@@ -59,6 +68,8 @@ DEFAULTS: dict = {
     "min_duration": 0.4,
     "preroll": 0.3,
     "trailing_space": True,
+    "auto_paste": True,  # paste into the app you are typing in
+    "keep_on_clipboard": True,  # leave the dictation on the clipboard for Ctrl+V
     "beep": False,
     "show_pill": True,
     "start_with_windows": True,
@@ -91,12 +102,20 @@ class Settings:
             try:
                 stored = json.loads(self.path.read_text(encoding="utf-8"))
                 self._data.update({k: v for k, v in stored.items() if k in DEFAULTS})
+                self._migrate(stored)
             except Exception:
                 log.exception("Could not read settings, using defaults")
         if not self._data["last_review"]:
             # The first cleanup prompt comes one review period after first run.
             self._data["last_review"] = now_iso()
         self.save()
+
+    def _migrate(self, stored: dict) -> None:
+        version = stored.get("settings_version", 1)
+        if version < 2 and stored.get("hotkey", "alt_r") == "alt_r":
+            # v2: the default shortcut became Right Alt + Space.
+            self._data["hotkey"] = "alt_r+space"
+        self._data["settings_version"] = SETTINGS_VERSION
 
     def __getitem__(self, key: str):
         with self._lock:

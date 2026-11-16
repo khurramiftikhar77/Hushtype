@@ -12,11 +12,22 @@ from pynput.keyboard import Controller, Key
 _kb = Controller()
 
 
-def paste_text(text: str) -> None:
-    try:
-        previous = pyperclip.paste()
-    except Exception:
-        previous = None
+def copy_text(text: str) -> None:
+    pyperclip.copy(text)
+
+
+def paste_text(text: str, keep_on_clipboard: bool = True) -> None:
+    """Pastes text into the focused app with Ctrl+V.
+
+    keep_on_clipboard=True leaves the text on the clipboard afterwards, so it
+    can be pasted again by hand. False restores what was copied before.
+    """
+    previous = None
+    if not keep_on_clipboard:
+        try:
+            previous = pyperclip.paste()
+        except Exception:
+            previous = None
 
     pyperclip.copy(text)
     time.sleep(0.05)  # let the clipboard settle

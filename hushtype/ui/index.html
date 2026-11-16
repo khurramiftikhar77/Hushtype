@@ -115,7 +115,7 @@ kbd { font-family: var(--mono); font-size: .8em; padding: 3px 10px; border-radiu
 .tile b { font: 600 28px var(--display); font-variant-numeric: tabular-nums; }
 .howto { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
 .how { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
-.how .k { flex: 0 0 170px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12.5px; }
+.how .k { flex: 0 0 200px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12.5px; }
 .how p { margin: 0; color: var(--muted); font-size: 13.5px; }
 .how p b { color: var(--text); font-weight: 600; }
 
@@ -196,7 +196,18 @@ const dayLabel = (iso) => {
 const S = { view: "home", settings: {}, options: {}, projects: [], stats: {}, last: null, models: {}, live: null,
   version: -1, history: [], hq: "", hlang: "", hproj: "", project: null, ptab: "list", mics: [], test: null };
 
-const keyName = () => (S.options.hotkeys || {})[S.settings.hotkey] || "Right Alt";
+const keyName = () => (S.options.hotkeys || {})[S.settings.hotkey] || "Right Alt + Space";
+const keyParts = () => keyName().split(" + ");
+const keysKbd = () => keyParts().map((k) => `<kbd>${esc(k)}</kbd>`).join(" + ");
+const modName = () => keyParts()[0];
+const isCombo = () => keyParts().length > 1;
+const mb = (b) => Math.round(b / 1e6).toLocaleString();
+function downloadBar(lang) {
+  const d = S.live && S.live.downloads && S.live.downloads[lang];
+  if (!d || !d.total) return "";
+  const pct = Math.min(100, Math.round((d.done / d.total) * 100));
+  return `<div class="row" style="gap:12px;max-width:520px"><div class="meter"><i style="width:${pct}%"></i></div><span class="mono" style="font-size:12.5px;white-space:nowrap">${pct}% · ${mb(d.done)} / ${mb(d.total)} MB</span></div>`;
+}
 const projectById = (id) => S.projects.find((p) => p.id === id) || S.projects[0] || { name: "Inbox", color: "teal" };
 const activeProject = () => projectById(S.settings.active_project);
 
@@ -247,10 +258,13 @@ function projectSelect(id = "active-project") {
 
 function heroContent() {
   const l = S.live || { state: "loading", message: "Starting..." };
-  const k = `<kbd>${esc(keyName())}</kbd>`;
-  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Tap ${k} to finish.` : `Release ${k} to paste.`}</p>`;
+  const k = keysKbd();
+  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Press ${k} again to finish.` : "Let go to paste."}</p>`;
   if (l.state === "working") return `<h2>Transcribing...</h2><p class="sub">Your text will appear where your cursor is.</p>`;
-  if (l.state === "model" || l.state === "loading") return `<h2>${esc(l.message || "Starting...")}</h2><p class="sub">This happens once. The first download can take a few minutes.</p>`;
+  if (l.state === "model" || l.state === "loading") {
+    const lang = Object.keys(l.downloads || {})[0];
+    return `<h2>${esc(l.message || "Starting...")}</h2>${lang ? downloadBar(lang) : ""}<p class="sub">${lang ? "This download happens only once. After that the model loads from your laptop, offline." : "One moment."}</p>`;
+  }
   if (l.state === "error") return `<h2>Hushtype needs attention</h2><p class="sub">${esc(l.message)}</p><div><button class="btn solid" data-go="settings">Open Settings</button></div>`;
   return `<h2>Hold ${k} and speak</h2><p class="sub" style="max-width:56ch">Release the key and your words are typed where your cursor is: LinkedIn, Gmail, Outlook, anywhere. Punctuation is added automatically.</p>`;
 }
@@ -291,10 +305,10 @@ function viewHome() {
   <section class="glass card" aria-labelledby="how-h">
     <h2 id="how-h">How to use Hushtype</h2>
     <div class="howto">
-      <div class="how"><div class="k"><kbd>Hold ${esc(keyName())}</kbd></div><p><b>Dictate.</b> Speak while holding, release to paste where your cursor is.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd></div><p><b>Hands-free.</b> Double-tap to keep recording without holding. Tap once more to finish.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project between English and Urdu.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd> + <kbd>V</kbd></div><p><b>Paste again.</b> Re-pastes your last dictation, for when it landed in the wrong box.</p></div>
+      <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding, let go to paste where your cursor is. The text also stays copied, so Ctrl+V works anywhere.</p></div>
+      <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project between English and Urdu.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Paste again.</b> Re-pastes your last dictation, for when it landed in the wrong box.</p></div>
       <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
       <div class="how"><div class="k"><span class="chip">Projects</span></div><p><b>Stay organised.</b> Dictations go to the active project, or to the project whose app rule matches (Outlook goes to Email).</p></div>
@@ -403,8 +417,9 @@ function sel(key, label, desc, options, extra = "") {
 function modelRow(lang) {
   const m = S.models[lang] || {}, name = S.settings[lang + "_model"], size = S.options.model_sizes[name] || "";
   const status = m.loading ? "downloading or loading now..." : m.on_disk ? "installed" : "not downloaded yet";
+  const bar = `<div id="dl-${lang}" style="flex-basis:100%">${downloadBar(lang)}</div>`;
   const btn = !m.on_disk && !m.loading ? `<button class="btn solid" data-download="${lang}">Download</button>` : "";
-  return sel(lang + "_model", `${S.options.languages[lang]} model`, `${esc(name)} · ${size} · ${status}${m.error ? " · last error: " + esc(m.error) : ""}`, S.options.models[lang], btn);
+  return sel(lang + "_model", `${S.options.languages[lang]} model`, `${esc(name)} · ${size} · ${status}${m.error ? " · last error: " + esc(m.error) : ""}`, S.options.models[lang], btn).replace(/<\/div>$/, bar + "</div>");
 }
 
 function viewSettings() {
@@ -424,14 +439,16 @@ function viewSettings() {
 
   <section class="glass card" aria-labelledby="h-keys" style="gap:0"><h2 id="h-keys" style="margin-bottom:8px">Shortcut and language</h2>
     ${sel("hotkey", "Dictation key", "Hold to record, release to paste", S.options.hotkeys)}
-    ${sw("hands_free", "Hands-free double-tap", `Double-tap ${esc(keyName())} to record without holding`)}
-    ${sw("language_switch_key", `${esc(keyName())} + L and ${esc(keyName())} + V`, "Switch language, and paste the last dictation again")}
+    ${sw("hands_free", "Hands-free double-tap", isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])} to record without holding` : `Double-tap ${esc(keyName())} to record without holding`)}
+    ${sw("language_switch_key", `${esc(modName())} + L and ${esc(modName())} + V`, "Switch language, and paste the last dictation again")}
     ${modelRow("en")}
     ${modelRow("ur")}
   </section>
 
   <section class="glass card" aria-labelledby="h-text" style="gap:0"><h2 id="h-text" style="margin-bottom:8px">Text</h2>
     ${sw("spoken_commands", "Line break commands", 'Say "new line" or "new paragraph". Punctuation is always automatic.')}
+    ${sw("auto_paste", "Paste automatically", "Types the text where your cursor is. Turn off to only copy it and paste yourself with Ctrl+V")}
+    ${sw("keep_on_clipboard", "Keep the text copied", "Your dictation stays on the clipboard, so Ctrl+V pastes it again anywhere")}
     ${sw("trailing_space", "Add a space after text", "So you can keep dictating in the same box")}
     <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>My words</b><span>Names and terms Hushtype should spell correctly</span></div>
       <div class="row">${(s.vocabulary || []).map((w, i) => `<span class="wordchip">${esc(w)}<button type="button" aria-label="Remove ${esc(w)}" data-rm-word="${i}">×</button></span>`).join("")}
@@ -449,8 +466,32 @@ function viewSettings() {
     ${sel("review_days", "Ask me to clean up history", "Hushtype asks before deleting anything", S.options.review_intervals)}
     <div class="setting"><div class="label"><b>Your data</b><span>${esc(S.dataDir || "")}</span></div><button class="btn" data-open-folder>Open folder</button></div>
   </section>
+  <section class="glass card" aria-labelledby="h-upd"><h2 id="h-upd">Updates</h2><div id="upd">${updateHtml()}</div></section>
   <p class="sub" style="font-size:12px">Hushtype ${esc(S.versionStr || "")} · MIT licence · Speech never leaves this computer.</p>`;
 }
+
+function updateHtml() {
+  const u = S.upd || { status: "idle" };
+  const btn = (label, attr, solid = true) => `<button class="btn ${solid ? "solid" : ""}" ${attr}>${label}</button>`;
+  const intro = `<p class="sub">You have Hushtype ${esc(S.versionStr || "")}. Hushtype only contacts GitHub when you press this button.</p>`;
+  if (u.status === "checking") return `<p class="sub">Checking GitHub for a newer version...</p>`;
+  if (u.status === "error") return `${intro}<p class="sub" style="color:var(--warn)">${esc(u.error)}</p><div>${btn("Try again", "data-check-update")}</div>`;
+  if (u.status === "downloading") {
+    const pct = u.total ? Math.round((u.done / u.total) * 100) : 0;
+    return `<p class="sub">Downloading Hushtype ${esc(u.latest)}...</p><div class="row" style="gap:12px"><div class="meter"><i style="width:${pct}%"></i></div><span class="mono" style="font-size:12.5px">${pct}% · ${mb(u.done)} / ${mb(u.total)} MB</span></div>`;
+  }
+  if (u.status === "installing") return `<p class="sub">Installing Hushtype ${esc(u.latest)}. Hushtype will close and reopen in a moment.</p>`;
+  if (u.status === "ready") {
+    if (!u.latest) return `${intro}<p class="sub">No release has been published yet.</p><div>${btn("Check again", "data-check-update", false)}</div>`;
+    if (!u.newer) return `${intro}<p class="sub"><b>You have the latest version.</b></p><div>${btn("Check again", "data-check-update", false)}</div>`;
+    return `<p class="sub"><b>Hushtype ${esc(u.latest)} is available.</b> You have ${esc(u.current)}.</p>
+      ${u.notes ? `<pre class="glass" style="margin:0;padding:12px 16px;border-radius:14px;white-space:pre-wrap;font:13px/1.6 var(--font);max-height:180px;overflow:auto;user-select:text">${esc(u.notes)}</pre>` : ""}
+      <div class="row">${u.can_install ? btn("Download and install", "data-install-update") : ""}${btn("Open the release page", `data-open-url="${esc(u.page)}"`, !u.can_install)}</div>
+      ${u.can_install ? '<p class="sub" style="font-size:12.5px">Your settings, history and downloaded models are kept.</p>' : '<p class="sub" style="font-size:12.5px">You are running from source: update with git pull.</p>'}`;
+  }
+  return `${intro}<div>${btn("Check for updates", "data-check-update")}</div>`;
+}
+function renderUpdate() { const el = $("#upd"); if (el) el.innerHTML = updateHtml(); }
 
 /* ---------------- dialogs ---------------- */
 function dialog(html) {
@@ -503,7 +544,7 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
@@ -528,6 +569,13 @@ document.addEventListener("click", async (e) => {
   if ("addSnip" in d) { const sn = { ...S.settings.snippets }; let k = "new snippet", i = 2; while (k in sn) k = `new snippet ${i++}`; sn[k] = ""; S.settings = await api().set_settings({ snippets: sn }); render(); return; }
   if (d.rmSnip) { const e2 = Object.entries(S.settings.snippets); e2.splice(Number(d.rmSnip), 1); S.settings = await api().set_settings({ snippets: Object.fromEntries(e2) }); render(); return; }
   if ("openFolder" in d) return api().open_data_folder();
+  if ("checkUpdate" in d) { S.upd = { status: "checking" }; renderUpdate(); S.upd = await api().check_update(); renderUpdate(); return; }
+  if ("installUpdate" in d) {
+    S.upd = await api().install_update(); renderUpdate();
+    const timer = setInterval(async () => { S.upd = await api().update_status(); renderUpdate(); if (S.upd.status === "error") clearInterval(timer); }, 400);
+    return;
+  }
+  if (d.openUrl) return api().open_url(d.openUrl);
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && $("#layer").innerHTML) closeDialog();
@@ -581,6 +629,8 @@ async function poll() {
     const prev = S.live ? S.live.state : null;
     S.live = await api().live();
     renderSideStatus();
+    if (S.view === "home" && S.live.state === "model") { const hero = $("#hero"); if (hero) hero.innerHTML = heroContent(); }
+    if (S.view === "settings") for (const lang of ["en", "ur"]) { const el = $("#dl-" + lang); if (el) el.innerHTML = downloadBar(lang); }
     if (S.view === "home") {
       if (prev !== S.live.state) {
         const hero = $("#hero"), orb = $("#orb");

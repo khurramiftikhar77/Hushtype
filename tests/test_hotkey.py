@@ -94,3 +94,92 @@ def test_auto_repeat_ignored():
     clock.t += 1
     logic.key_up()
     assert log == ["start", "stop"]
+
+
+# ---------- two-key shortcuts (KeyRouter) ----------
+
+from hushtype.hotkey import VK_L, VK_RALT, VK_SPACE, VK_V, KeyRouter  # noqa: E402
+
+A = 0x41  # the letter A
+
+
+def router(shortcut="alt_r+space", **kw):
+    logic, log, clock = make(**kw)
+    return KeyRouter(shortcut, logic), log, clock
+
+
+def test_combo_hold_both_records_and_release_space_stops():
+    r, log, clock = router()
+    assert r.event(VK_RALT, True)
+    assert r.event(VK_SPACE, True)
+    assert log == ["start"]
+    clock.t += 2
+    assert r.event(VK_SPACE, False)
+    assert log == ["start", "stop"]
+    assert r.event(VK_RALT, False)
+    assert log == ["start", "stop"]
+
+
+def test_combo_release_alt_first_also_stops_and_space_up_is_swallowed():
+    r, log, clock = router()
+    r.event(VK_RALT, True); r.event(VK_SPACE, True)
+    clock.t += 2
+    r.event(VK_RALT, False)
+    assert log == ["start", "stop"]
+    assert r.event(VK_SPACE, False)  # its down was swallowed, so the up is too
+    assert log == ["start", "stop"]
+
+
+def test_plain_space_and_letters_type_normally():
+    r, log, clock = router()
+    assert not r.event(VK_SPACE, True)
+    assert not r.event(VK_SPACE, False)
+    assert not r.event(A, True)
+    assert log == []
+
+
+def test_right_alt_alone_does_nothing_but_is_hidden_from_apps():
+    r, log, clock = router()
+    assert r.event(VK_RALT, True)
+    assert r.event(VK_RALT, False)
+    assert log == []
+
+
+def test_combo_double_tap_space_gives_hands_free():
+    r, log, clock = router()
+    r.event(VK_RALT, True)
+    r.event(VK_SPACE, True); clock.t += 0.1; r.event(VK_SPACE, False)
+    clock.t += 0.2
+    r.event(VK_SPACE, True); clock.t += 0.1; r.event(VK_SPACE, False)
+    r.event(VK_RALT, False)
+    assert log[-1] == "hands_free"
+    clock.t += 5
+    r.event(VK_RALT, True); r.event(VK_SPACE, True)
+    assert log[-1] == "stop"
+
+
+def test_alt_plus_l_switches_language_without_recording():
+    r, log, clock = router()
+    r.event(VK_RALT, True)
+    assert r.event(VK_L, True)
+    assert r.event(VK_L, False)
+    r.event(VK_RALT, False)
+    assert log == ["toggle_language"]
+
+
+def test_alt_plus_v_repastes_after_alt_release():
+    r, log, clock = router()
+    r.event(VK_RALT, True)
+    r.event(VK_V, True); r.event(VK_V, False)
+    assert log == []
+    r.event(VK_RALT, False)
+    assert log == ["repaste"]
+
+
+def test_single_key_shortcut_still_works():
+    r, log, clock = router("alt_r")
+    assert r.event(VK_RALT, True)
+    clock.t += 1
+    assert r.event(VK_RALT, False)
+    assert log == ["start", "stop"]
+    assert not r.event(VK_SPACE, True)

@@ -62,8 +62,11 @@ function render(l) {
         <span class="time" id="t">0:00</span><span class="lang ${l.language}">${l.language.toUpperCase()}</span><span class="hint" id="hf"></span>`;
     }
   } else if (l.state === "working" || l.state === "model") {
-    mode = "busy:" + l.message;
-    html = `<div class="spinner" aria-hidden="true"></div><span class="msg">${esc(l.state === "model" ? l.message : "Transcribing")}</span>`;
+    const d = l.downloads && Object.values(l.downloads)[0];
+    const pct = d && d.total ? ` ${Math.min(100, Math.round((d.done / d.total) * 100))}%` : "";
+    const text = l.state === "model" ? (d ? "Downloading model" + pct : l.message) : "Transcribing";
+    mode = "busy:" + text;
+    html = `<div class="spinner" aria-hidden="true"></div><span class="msg">${esc(text)}</span>`;
   } else if (l.flash) {
     mode = "flash:" + l.flash.text;
     const b = l.flash.kind === "pasted" ? `<div class="badge ok">${check}</div>` : `<div class="badge warn">${warn}</div>`;

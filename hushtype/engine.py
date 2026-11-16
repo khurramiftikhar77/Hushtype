@@ -50,7 +50,9 @@ class Engine:
                  recorder_factory: Callable | None = None,
                  transcriber_factory: Callable | None = None,
                  hotkeys_factory: Callable | None = None,
-                 paste: Callable[[str], None] | None = None,
+                 paste: Callable[[str, bool], None] | None = None,
+                 copy: Callable[[str], None] | None = None,
+                 model_bytes: Callable[[str], int] | None = None,
                  foreground: Callable[[], tuple[int, str, str]] | None = None,
                  focus: Callable[[int], None] | None = None,
                  model_on_disk: Callable[[str], bool] | None = None,
@@ -61,6 +63,9 @@ class Engine:
         self._transcriber_factory = transcriber_factory
         self._hotkeys_factory = hotkeys_factory
         self._paste = paste
+        self._copy = copy
+        self._model_bytes = model_bytes
+        self.downloads: dict[str, dict] = {}  # language -> {"done": bytes, "total": bytes}
         self._foreground = foreground
         self._focus = focus
         self._model_on_disk = model_on_disk
@@ -178,6 +183,7 @@ class Engine:
             "flash": flash,
             "version": self.store.version,
             "loading_models": sorted(self.loading_models),
+            "downloads": {k: dict(v) for k, v in self.downloads.items()},
         }
 
     # ---------- projects & models ----------
@@ -209,6 +215,8 @@ class Engine:
             prev = self.live_state.state
             if prev in ("idle", "loading", "model", "working"):
                 self._set("model", f"{'Downloading' if downloading else 'Loading'} the {label} model...")
+            if downloading:
+                self._watch_download(language, name)
             try:
                 t = self._transcriber_factory(name, self.settings["beam_size"],
                                               self.settings["vocabulary"], self.settings["cpu_threads"])
@@ -221,8 +229,31 @@ class Engine:
                 raise
             finally:
                 self.loading_models.discard(language)
+                self.downloads.pop(language, None)
                 if self.live_state.state == "model":
                     self._set("working" if prev == "working" else "idle", "Ready")
+
+    def _watch_download(self, language: str, name: str) -> None:
+        """Tracks download progress by watching the model's cache folder grow."""
+        from hushtype.settings import MODEL_BYTES
+
+        total = MODEL_BYTES.get(name, 0)
+        if not (self._model_bytes and total):
+            return
+        start = self._model_bytes(name)
+        self.downloads[language] = {"done": 0, "total": total}
+
+        def loop():
+            while language in self.loading_models:
+                try:
+                    done = max(0, self._model_bytes(name) - start)
+                    if language in self.downloads:
+                        self.downloads[language]["done"] = min(done, total)
+                except Exception:
+                    pass
+                time.sleep(0.5)
+
+        threading.Thread(target=loop, daemon=True).start()
 
     def download_model(self, language: str) -> None:
         def run():
@@ -314,7 +345,7 @@ class Engine:
 
     def repaste(self) -> None:
         if self.last_text and self._paste:
-            self._paste(self.last_text)
+            self._paste(self.last_text, self.settings["keep_on_clipboard"])
             self.flash("pasted", "Pasted again")
         else:
             self.flash("info", "Nothing to paste yet")
@@ -351,13 +382,19 @@ class Engine:
             return None
         if s["trailing_space"] and not text.endswith("\n"):
             text += " "
-        if self._focus:
-            self._focus(job.hwnd)
-        if self._paste:
-            self._paste(text)
         self.last_text = text
         words = len(text.split())
-        self.flash("pasted", f"Pasted · {words} word{'s' if words != 1 else ''}")
+        plural = "s" if words != 1 else ""
+        if s["auto_paste"]:
+            if self._focus:
+                self._focus(job.hwnd)
+            if self._paste:
+                self._paste(text, s["keep_on_clipboard"])
+            self.flash("pasted", f"Pasted · {words} word{plural}")
+        else:
+            if self._copy:
+                self._copy(text)
+            self.flash("pasted", f"Copied · {words} word{plural}. Press Ctrl+V")
         if s["save_history"]:
             return self.store.add(project_id=p["id"], language=job.language, duration=round(job.duration, 2),
                                   process_time=round(took, 2), text=text.strip(), raw_text=raw, app=job.app)
@@ -391,8 +428,8 @@ def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
     from hushtype import winutil
     from hushtype.audio import Recorder
     from hushtype.hotkey import Hotkeys
-    from hushtype.output import paste_text
-    from hushtype.transcriber import Transcriber, model_on_disk
+    from hushtype.output import copy_text, paste_text
+    from hushtype.transcriber import Transcriber, model_cache_bytes, model_on_disk
 
     return Engine(
         settings, store,
@@ -401,6 +438,8 @@ def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
             name, beam_size=beam, vocabulary=vocab, cpu_threads=threads),
         hotkeys_factory=lambda key, actions, hands_free, combos: Hotkeys(key, actions, hands_free, combos),
         paste=paste_text,
+        copy=copy_text,
+        model_bytes=model_cache_bytes,
         foreground=winutil.foreground_window,
         focus=winutil.focus_window,
         model_on_disk=model_on_disk,

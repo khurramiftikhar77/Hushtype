@@ -53,6 +53,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\Hushtype.exe"; Description: "Open Hushtype now"; Flags: nowait postinstall skipifsilent
+; After an update started from the app (silent install), reopen Hushtype.
+Filename: "{app}\Hushtype.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

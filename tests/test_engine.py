@@ -66,7 +66,8 @@ def env(tmp_path):
                  recorder_factory=lambda mic, pre: FakeRecorder(),
                  transcriber_factory=factory,
                  hotkeys_factory=lambda *a: FakeHotkeys(*a),
-                 paste=pasted.append,
+                 paste=lambda text, keep=True: pasted.append(text),
+                 copy=lambda text: pasted.append("COPY:" + text),
                  foreground=lambda: (42, window["title"], window["exe"]),
                  focus=focused.append,
                  model_on_disk=lambda name: True)
@@ -180,3 +181,48 @@ def test_delete_project_moves_items_to_inbox(env):
     assert store.last()["project_id"] == 1
     with pytest.raises(ValueError):
         store.delete_project(1)
+
+
+def test_copy_only_mode(env):
+    eng, settings, store, pasted, focused, *_ = env
+    settings.update({"auto_paste": False})
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert pasted == ["COPY:Thanks for sharing this,\n\nKhurram "]
+    assert focused == []
+    assert "Ctrl+V" in eng.live()["flash"]["text"]
+
+
+def test_download_progress_is_reported(tmp_path):
+    import threading
+    import time as _t
+
+    settings = Settings(tmp_path / "s.json")
+    store = Store(tmp_path / "d.db")
+    size = {"n": 0}
+    release = threading.Event()
+
+    def slow_model(name, *a):
+        for _ in range(20):
+            size["n"] += 50_000_000
+            _t.sleep(0.05)
+        release.wait(2)
+        return FakeModel(name)
+
+    eng = Engine(settings, store, recorder_factory=lambda *a: FakeRecorder(), transcriber_factory=slow_model,
+                 hotkeys_factory=lambda *a: FakeHotkeys(*a), model_on_disk=lambda n: False,
+                 model_bytes=lambda n: size["n"])
+    t = threading.Thread(target=eng.get_model, args=("en",)); t.start()
+    _t.sleep(0.8)
+    d = eng.live()["downloads"]["en"]
+    assert d["total"] == 484_000_000 and 0 < d["done"] <= d["total"]
+    release.set(); t.join()
+    assert eng.live()["downloads"] == {}
+
+
+def test_settings_migrate_old_shortcut(tmp_path):
+    import json
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"hotkey": "alt_r"}))
+    assert Settings(path)["hotkey"] == "alt_r+space"
+    path.write_text(json.dumps({"hotkey": "f9"}))
+    assert Settings(path)["hotkey"] == "f9"
