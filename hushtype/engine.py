@@ -1,0 +1,408 @@
+"""The core: hotkey -> microphone -> Whisper -> cleanup -> paste -> history.
+
+The GUI only reads `live()` and calls the public methods; it never touches the
+recorder or models directly. Every OS-facing piece is injectable for tests.
+"""
+
+from __future__ import annotations
+
+import logging
+import queue
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Callable
+
+import numpy as np
+
+from hushtype.cleanup import clean
+from hushtype.settings import LANGUAGES, Settings, now_iso
+from hushtype.store import INBOX_ID, Store
+
+log = logging.getLogger(__name__)
+
+SAMPLE_RATE = 16000
+FLASH_SECONDS = 1.6
+
+
+@dataclass
+class Job:
+    audio: np.ndarray
+    project: dict
+    language: str
+    hwnd: int
+    app: str
+    duration: float
+
+
+@dataclass
+class Live:
+    state: str = "loading"  # loading | idle | recording | working | model | error
+    message: str = "Starting..."
+    started: float = 0.0
+    hands_free: bool = False
+    project: dict = field(default_factory=dict)
+    language: str = "en"
+
+
+class Engine:
+    def __init__(self, settings: Settings, store: Store, *,
+                 recorder_factory: Callable | None = None,
+                 transcriber_factory: Callable | None = None,
+                 hotkeys_factory: Callable | None = None,
+                 paste: Callable[[str], None] | None = None,
+                 foreground: Callable[[], tuple[int, str, str]] | None = None,
+                 focus: Callable[[int], None] | None = None,
+                 model_on_disk: Callable[[str], bool] | None = None,
+                 on_state: Callable[[str], None] | None = None):
+        self.settings = settings
+        self.store = store
+        self._recorder_factory = recorder_factory
+        self._transcriber_factory = transcriber_factory
+        self._hotkeys_factory = hotkeys_factory
+        self._paste = paste
+        self._foreground = foreground
+        self._focus = focus
+        self._model_on_disk = model_on_disk
+        self.on_state = on_state or (lambda s: None)
+
+        self.live_state = Live()
+        self._flash: tuple[str, str, float] | None = None  # (kind, text, until)
+        self.recorder = None
+        self.hotkeys = None
+        self.models: dict[str, object] = {}  # language -> Transcriber
+        self._model_names: dict[str, str] = {}
+        self._model_lock = threading.Lock()
+        self.loading_models: set[str] = set()
+        self.model_errors: dict[str, str] = {}
+        self._jobs: queue.Queue = queue.Queue()
+        self._target: dict | None = None
+        self.last_text: str | None = None
+        self._lock = threading.RLock()
+
+    # ---------- lifecycle ----------
+
+    def start(self) -> None:
+        """Opens the mic and hotkey, then loads the English model. Call off the UI thread."""
+        threading.Thread(target=self._worker, daemon=True, name="hushtype-worker").start()
+        self._open_recorder()
+        self._open_hotkeys()
+        lang = self._active_project()["language"]
+        try:
+            self.get_model("en")
+            if lang != "en" and self.model_ready_on_disk(lang):
+                self.get_model(lang)
+        except Exception as e:
+            log.exception("Could not load the speech model")
+            self._set("error", f"Could not load the speech model: {e}")
+            return
+        if self.live_state.state in ("loading", "model"):
+            self._set("idle", "Ready")
+
+    def stop(self) -> None:
+        self._jobs.put(None)
+        if self.hotkeys:
+            self.hotkeys.stop()
+        if self.recorder:
+            try:
+                self.recorder.close()
+            except Exception:
+                pass
+
+    def _open_recorder(self) -> None:
+        if self.recorder:
+            try:
+                self.recorder.close()
+            except Exception:
+                pass
+            self.recorder = None
+        try:
+            self.recorder = self._recorder_factory(self.settings["mic"], self.settings["preroll"])
+            self.recorder.start_stream()
+        except Exception as e:
+            log.exception("Microphone failed")
+            self.recorder = None
+            self._set("error", f"Microphone not available: {e}")
+
+    def _open_hotkeys(self) -> None:
+        if self.hotkeys:
+            self.hotkeys.stop()
+        actions = {"start": self.begin_recording, "stop": self.finish_recording,
+                   "cancel": self.cancel_recording, "toggle_language": self.toggle_language,
+                   "repaste": self.repaste, "hands_free": self._hands_free_on}
+        self.hotkeys = self._hotkeys_factory(self.settings["hotkey"], actions,
+                                             self.settings["hands_free"],
+                                             self.settings["language_switch_key"])
+        self.hotkeys.start()
+
+    def apply_settings(self, changed: dict) -> None:
+        """Reacts to settings saved from the GUI."""
+        if "mic" in changed or "preroll" in changed:
+            self._open_recorder()
+            if self.recorder and self.live_state.state == "error":
+                self._set("idle", "Ready")
+        if {"hotkey", "hands_free", "language_switch_key"} & changed.keys():
+            self._open_hotkeys()
+        for lang in ("en", "ur"):
+            if f"{lang}_model" in changed:
+                with self._model_lock:
+                    self.models.pop(lang, None)
+
+    # ---------- state ----------
+
+    def _set(self, state: str, message: str = "") -> None:
+        with self._lock:
+            self.live_state.state = state
+            self.live_state.message = message
+        self.on_state(state)
+
+    def flash(self, kind: str, text: str) -> None:
+        """A short message on the pill: 'pasted', 'warn', 'info'."""
+        self._flash = (kind, text, time.monotonic() + FLASH_SECONDS)
+        self.on_state("flash")
+
+    def live(self) -> dict:
+        s = self.live_state
+        flash = None
+        if self._flash and self._flash[2] > time.monotonic():
+            flash = {"kind": self._flash[0], "text": self._flash[1]}
+        project = s.project if s.state in ("recording", "working") else self._active_project()
+        return {
+            "state": s.state,
+            "message": s.message,
+            "elapsed": (time.monotonic() - s.started) if s.state == "recording" else 0.0,
+            "level": self.recorder.level if (self.recorder and s.state == "recording") else 0.0,
+            "hands_free": s.hands_free,
+            "project": {k: project.get(k) for k in ("id", "name", "color", "language")},
+            "language": s.language if s.state in ("recording", "working") else project.get("language", "en"),
+            "flash": flash,
+            "version": self.store.version,
+            "loading_models": sorted(self.loading_models),
+        }
+
+    # ---------- projects & models ----------
+
+    def _active_project(self) -> dict:
+        p = self.store.project(self.settings["active_project"])
+        if p is None:
+            self.settings.update({"active_project": INBOX_ID})
+            p = self.store.project(INBOX_ID)
+        return p
+
+    def model_name(self, language: str) -> str:
+        return self.settings[f"{language}_model"]
+
+    def model_ready_on_disk(self, language: str) -> bool:
+        if language in self.models:
+            return True
+        return bool(self._model_on_disk and self._model_on_disk(self.model_name(language)))
+
+    def get_model(self, language: str):
+        """Returns the loaded model for a language, loading (or downloading) it once."""
+        with self._model_lock:
+            name = self.model_name(language)
+            if language in self.models and self._model_names.get(language) == name:
+                return self.models[language]
+            self.loading_models.add(language)
+            downloading = not self.model_ready_on_disk(language)
+            label = LANGUAGES.get(language, language)
+            prev = self.live_state.state
+            if prev in ("idle", "loading", "model", "working"):
+                self._set("model", f"{'Downloading' if downloading else 'Loading'} the {label} model...")
+            try:
+                t = self._transcriber_factory(name, self.settings["beam_size"],
+                                              self.settings["vocabulary"], self.settings["cpu_threads"])
+                self.models[language] = t
+                self._model_names[language] = name
+                self.model_errors.pop(language, None)
+                return t
+            except Exception as e:
+                self.model_errors[language] = str(e)
+                raise
+            finally:
+                self.loading_models.discard(language)
+                if self.live_state.state == "model":
+                    self._set("working" if prev == "working" else "idle", "Ready")
+
+    def download_model(self, language: str) -> None:
+        def run():
+            try:
+                self.get_model(language)
+                self.flash("pasted", f"{LANGUAGES[language]} model ready")
+            except Exception as e:
+                log.exception("Model download failed")
+                self.flash("warn", f"Download failed: {e}")
+        threading.Thread(target=run, daemon=True).start()
+
+    # ---------- hotkey actions ----------
+
+    def _pick_target(self) -> dict:
+        hwnd, title, exe = self._foreground() if self._foreground else (0, "", "")
+        from hushtype.winutil import friendly_app
+
+        pid = self.store.match_rule(f"{exe} {title}")
+        project = (self.store.project(pid) if pid else None) or self._active_project()
+        return {"hwnd": hwnd, "app": friendly_app(title, exe), "project": project}
+
+    def begin_recording(self) -> None:
+        state = self.live_state.state
+        if state in ("loading",):
+            self.flash("info", "Still starting, one moment")
+            return
+        if self.recorder is None:
+            self.flash("warn", "No microphone. Check Settings.")
+            return
+        target = self._pick_target()
+        self._target = target
+        self.recorder.begin()
+        if self.settings["beep"]:
+            from hushtype.output import beep
+            beep(True)
+        with self._lock:
+            self.live_state.started = time.monotonic()
+            self.live_state.hands_free = False
+            self.live_state.project = target["project"]
+            self.live_state.language = target["project"]["language"]
+        self._set("recording", "Listening")
+
+    def _hands_free_on(self) -> None:
+        with self._lock:
+            self.live_state.hands_free = True
+        self.on_state("recording")
+
+    def cancel_recording(self) -> None:
+        if self.live_state.state != "recording":
+            return
+        if self.recorder:
+            self.recorder.cancel()
+        self._target = None
+        with self._lock:
+            self.live_state.hands_free = False
+        self._set("idle", "Ready")
+
+    def finish_recording(self) -> None:
+        if self.live_state.state != "recording" or self.recorder is None:
+            return
+        audio = self.recorder.end()
+        if self.settings["beep"]:
+            from hushtype.output import beep
+            beep(False)
+        target, self._target = self._target, None
+        with self._lock:
+            self.live_state.hands_free = False
+        duration = len(audio) / SAMPLE_RATE
+        if duration < self.settings["min_duration"] or target is None:
+            self._set("idle", "Ready")
+            return
+        self._set("working", "Transcribing")
+        self._jobs.put(Job(audio=audio, project=target["project"], language=self.live_state.language,
+                           hwnd=target["hwnd"], app=target["app"], duration=duration))
+
+    def toggle_language(self) -> None:
+        p = self._active_project()
+        new = "ur" if p["language"] == "en" else "en"
+        self.store.update_project(p["id"], language=new)
+        self.flash("info", f"{p['name']}: {LANGUAGES[new]}")
+        if not self.model_ready_on_disk(new):
+            self.download_model(new)
+
+    def set_language(self, language: str) -> None:
+        p = self._active_project()
+        self.store.update_project(p["id"], language=language)
+        if not self.model_ready_on_disk(language):
+            self.download_model(language)
+
+    def repaste(self) -> None:
+        if self.last_text and self._paste:
+            self._paste(self.last_text)
+            self.flash("pasted", "Pasted again")
+        else:
+            self.flash("info", "Nothing to paste yet")
+
+    # ---------- worker ----------
+
+    def _worker(self) -> None:
+        while True:
+            job = self._jobs.get()
+            if job is None:
+                return
+            try:
+                self._process(job)
+            except Exception as e:
+                log.exception("Transcription failed")
+                self.flash("warn", f"Something went wrong: {e}")
+            finally:
+                if self._jobs.empty() and self.live_state.state in ("working", "model"):
+                    self._set("idle", "Ready")
+
+    def _process(self, job: Job) -> dict | None:
+        t0 = time.perf_counter()
+        model = self.get_model(job.language)
+        self._set("working", "Transcribing")
+        raw = model.transcribe(job.audio, job.language)
+        p = job.project
+        s = self.settings
+        text = clean(raw, language=job.language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
+                     spoken_commands=s["spoken_commands"], replacements=s["replacements"],
+                     snippets=s["snippets"])
+        took = time.perf_counter() - t0
+        if not text:
+            self.flash("warn", "Didn't catch that. Try again")
+            return None
+        if s["trailing_space"] and not text.endswith("\n"):
+            text += " "
+        if self._focus:
+            self._focus(job.hwnd)
+        if self._paste:
+            self._paste(text)
+        self.last_text = text
+        words = len(text.split())
+        self.flash("pasted", f"Pasted · {words} word{'s' if words != 1 else ''}")
+        if s["save_history"]:
+            return self.store.add(project_id=p["id"], language=job.language, duration=round(job.duration, 2),
+                                  process_time=round(took, 2), text=text.strip(), raw_text=raw, app=job.app)
+        return None
+
+    # ---------- history review ----------
+
+    def cleanup_due(self) -> int:
+        """Number of old dictations to offer for deletion, or 0 if no prompt is due."""
+        days = int(self.settings["review_days"] or 0)
+        if days <= 0:
+            return 0
+        from datetime import datetime, timedelta
+
+        try:
+            last = datetime.fromisoformat(self.settings["last_review"])
+        except Exception:
+            last = None
+        if last and datetime.now(last.tzinfo) - last < timedelta(days=days):
+            return 0
+        return self.store.count_older_than(days)
+
+    def cleanup(self, delete: bool) -> int:
+        n = self.store.delete_older_than(int(self.settings["review_days"] or 7)) if delete else 0
+        self.settings.update({"last_review": now_iso()})
+        return n
+
+
+def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
+    """Engine wired to the real microphone, keyboard, clipboard and Whisper."""
+    from hushtype import winutil
+    from hushtype.audio import Recorder
+    from hushtype.hotkey import Hotkeys
+    from hushtype.output import paste_text
+    from hushtype.transcriber import Transcriber, model_on_disk
+
+    return Engine(
+        settings, store,
+        recorder_factory=lambda mic, preroll: Recorder(mic, preroll),
+        transcriber_factory=lambda name, beam, vocab, threads: Transcriber(
+            name, beam_size=beam, vocabulary=vocab, cpu_threads=threads),
+        hotkeys_factory=lambda key, actions, hands_free, combos: Hotkeys(key, actions, hands_free, combos),
+        paste=paste_text,
+        foreground=winutil.foreground_window,
+        focus=winutil.focus_window,
+        model_on_disk=model_on_disk,
+        on_state=on_state,
+    )

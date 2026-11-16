@@ -66,8 +66,12 @@ DEFAULTS: dict = {
     "review_days": 7,
     "last_review": None,  # ISO timestamp of the last cleanup prompt
     "active_project": 1,
+    "hands_free": True,  # double-tap the key to keep recording without holding it
+    "spoken_commands": True,  # "new line", "new paragraph", "full stop" ...
     "vocabulary": ["LinkedIn"],
     "replacements": {"linked in": "LinkedIn"},
+    # Say the trigger, get the text. Edited on the Settings screen.
+    "snippets": {"my signature": "Best regards,\nKhurram"},
 }
 
 

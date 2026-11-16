@@ -77,6 +77,7 @@ class Recorder:
         self._lock = threading.Lock()
         self._recording = False
         self._chunks: list[np.ndarray] = []
+        self.level_db = -100.0  # loudness of the latest ~10 ms, for meters
 
         # Prefer 16 kHz directly; fall back to the device's own rate and resample.
         try:
@@ -111,6 +112,8 @@ class Recorder:
         if status:
             log.debug("Audio status: %s", status)
         block = indata[:, 0].copy()
+        rms = float(np.sqrt(np.mean(block**2))) if block.size else 0.0
+        self.level_db = 20 * np.log10(rms) if rms > 1e-9 else -100.0
         with self._lock:
             if self._recording:
                 self._chunks.append(block)
@@ -122,6 +125,16 @@ class Recorder:
             self._chunks = list(self._preroll)
             self._preroll.clear()
             self._recording = True
+
+    @property
+    def level(self) -> float:
+        """Current loudness from 0 (silence) to 1 (loud speech), for meters."""
+        return float(min(1.0, max(0.0, (self.level_db + 55) / 45)))
+
+    def cancel(self) -> None:
+        with self._lock:
+            self._recording = False
+            self._chunks = []
 
     def end(self) -> np.ndarray:
         """Stops recording and returns mono float32 audio at 16 kHz."""
