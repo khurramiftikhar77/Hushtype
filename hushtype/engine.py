@@ -58,6 +58,7 @@ class Engine:
                  foreground: Callable[[], tuple[int, str, str]] | None = None,
                  focus: Callable[[int], None] | None = None,
                  model_on_disk: Callable[[str], bool] | None = None,
+                 delete_model: Callable[[str], int] | None = None,
                  on_state: Callable[[str], None] | None = None):
         self.settings = settings
         self.store = store
@@ -71,14 +72,14 @@ class Engine:
         self._foreground = foreground
         self._focus = focus
         self._model_on_disk = model_on_disk
+        self._delete_model = delete_model
         self.on_state = on_state or (lambda s: None)
 
         self.live_state = Live()
         self._flash: tuple[str, str, float] | None = None  # (kind, text, until)
         self.recorder = None
         self.hotkeys = None
-        self.models: dict[str, object] = {}  # language -> Transcriber
-        self._model_names: dict[str, str] = {}
+        self.models: dict[str, object] = {}  # model name -> Transcriber (shared by languages)
         self._model_lock = threading.Lock()
         self.loading_models: set[str] = set()
         self.model_errors: dict[str, str] = {}
@@ -151,10 +152,8 @@ class Engine:
                 self._set("idle", "Ready")
         if {"hotkey", "hands_free", "language_switch_key"} & changed.keys():
             self._open_hotkeys()
-        for lang in ("en", "ur"):
-            if f"{lang}_model" in changed:
-                with self._model_lock:
-                    self.models.pop(lang, None)
+        if {"en_model", "ur_model", "models", "detect_model", "languages_enabled"} & changed.keys():
+            self._unload_unused()
 
     # ---------- state ----------
 
@@ -201,21 +200,55 @@ class Engine:
         return p
 
     def model_name(self, language: str) -> str:
-        return self.settings[f"{MODEL_LANGUAGE.get(language, language)}_model"]
+        slot = MODEL_LANGUAGE.get(language, language)
+        if slot in ("en", "ur", "detect"):
+            return self.settings[f"{slot}_model"]
+        return self.settings["models"].get(slot, "large-v3-turbo")
 
     def model_ready_on_disk(self, language: str) -> bool:
-        language = MODEL_LANGUAGE.get(language, language)
-        if language in self.models:
+        name = self.model_name(language)
+        if name in self.models:
             return True
-        return bool(self._model_on_disk and self._model_on_disk(self.model_name(language)))
+        return bool(self._model_on_disk and self._model_on_disk(name))
+
+    def enabled_languages(self) -> list[str]:
+        langs = [l for l in self.settings["languages_enabled"] if l in LANGUAGES and l != "auto"]
+        return langs or ["en"]
+
+    def _needed_models(self) -> set[str]:
+        names = {self.model_name(l) for l in self.enabled_languages()}
+        names.add(self.model_name("en"))
+        if self._active_project()["language"] == "auto":
+            names.add(self.model_name("detect"))
+        return names
+
+    def _unload_unused(self) -> None:
+        """Frees memory held by models no enabled language uses any more."""
+        with self._model_lock:
+            keep = self._needed_models() | {self.model_name("detect")}
+            for name in list(self.models):
+                if name not in keep:
+                    log.info("Unloading model %s", name)
+                    self.models.pop(name, None)
+
+    def remove_model(self, language: str) -> int:
+        """Deletes a language's model from disk (and memory). Returns bytes freed."""
+        name = self.model_name(language)
+        with self._model_lock:
+            self.models.pop(name, None)
+        if not self._delete_model:
+            return 0
+        freed = self._delete_model(name)
+        log.info("Removed model %s (%.0f MB)", name, freed / 1e6)
+        return freed
 
     def get_model(self, language: str):
         """Returns the loaded model for a language, loading (or downloading) it once."""
         language = MODEL_LANGUAGE.get(language, language)  # Punjabi uses the Urdu model
         with self._model_lock:
             name = self.model_name(language)
-            if language in self.models and self._model_names.get(language) == name:
-                return self.models[language]
+            if name in self.models:
+                return self.models[name]
             self.loading_models.add(language)
             downloading = not self.model_ready_on_disk(language)
             label = LANGUAGES.get(language, language)
@@ -227,8 +260,7 @@ class Engine:
             try:
                 t = self._transcriber_factory(name, self.settings["beam_size"],
                                               self.settings["vocabulary"], self.settings["cpu_threads"])
-                self.models[language] = t
-                self._model_names[language] = name
+                self.models[name] = t
                 self.model_errors.pop(language, None)
                 return t
             except Exception as e:
@@ -245,16 +277,26 @@ class Engine:
         """Model slots a language needs: Auto needs the detector and both writers."""
         return ["detect", "en", "ur"] if language == "auto" else [language]
 
+    def _language_order(self) -> list[str]:
+        return ["auto"] + self.enabled_languages()
+
     def detect_language(self, audio) -> str:
         """Auto mode: English or (Urdu / Punjabi, as chosen in Settings)."""
         probs = self.get_model("detect").detect(audio)
         english = probs.get("en", 0.0)
         south = sum(probs.get(k, 0.0) for k in SOUTH_ASIAN)
-        other = self.settings["auto_other"] if self.settings["auto_other"] in ("ur", "pa") else "ur"
+        other = self.settings["auto_other"] if self.settings["auto_other"] in ("ur", "pa", "hi") else "ur"
         # English only when the detector is clearly sure: short Urdu was sometimes
         # mistaken for English, never the other way round. 0.7 scored 60/60 Urdu
         # and 60/60 English on 3 s of real speech (Google FLEURS).
-        choice = "en" if english >= AUTO_ENGLISH_CONFIDENCE else other
+        if english >= AUTO_ENGLISH_CONFIDENCE:
+            choice = "en"
+        else:
+            # Other enabled languages (Arabic, Persian...) win if they clearly beat
+            # the Urdu/Hindi/Punjabi group; that group is one sound for the detector.
+            extra = {l: probs.get(l, 0.0) for l in self.enabled_languages() if l not in SOUTH_ASIAN + ("en",)}
+            best = max(extra, key=extra.get) if extra else None
+            choice = best if best and extra[best] > south else other
         log.info("Auto language: %s (English %.2f, Urdu/Hindi/Punjabi %.2f)", choice, english, south)
         return choice
 
@@ -380,7 +422,7 @@ class Engine:
     def toggle_language(self) -> None:
         """Cycles the active project's language: English, Urdu, Punjabi."""
         p = self._active_project()
-        order = list(LANGUAGES)
+        order = self._language_order()
         new = order[(order.index(p["language"]) + 1) % len(order)] if p["language"] in order else "en"
         self.store.update_project(p["id"], language=new)
         self.flash("info", f"{p['name']}: {LANGUAGES[new]}")
@@ -498,7 +540,7 @@ def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
     from hushtype.audio import Recorder
     from hushtype.hotkey import Hotkeys
     from hushtype.output import copy_text, paste_text
-    from hushtype.transcriber import Transcriber, model_cache_bytes, model_on_disk
+    from hushtype.transcriber import Transcriber, delete_model_files, model_cache_bytes, model_on_disk
 
     return Engine(
         settings, store,
@@ -512,5 +554,6 @@ def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
         foreground=winutil.foreground_window,
         focus=winutil.focus_window,
         model_on_disk=model_on_disk,
+        delete_model=delete_model_files,
         on_state=on_state,
     )

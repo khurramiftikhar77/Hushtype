@@ -29,6 +29,11 @@ PROMPTS = {
     "ur": "السلام علیکم، آپ کیسے ہیں؟ میں ٹھیک ہوں، شکریہ۔ کل ملاقات کرتے ہیں۔",
     # Pakistani Punjabi in Shahmukhi, mixed with Urdu the way people speak it.
     "pa": "السلام علیکم، کی حال اے؟ میں ٹھیک آں، تسی سناؤ۔ کل ملدے آں، فیر گل کراں گے۔ بہت شکریہ جی۔",
+    "hi": "नमस्ते, आप कैसे हैं? मैं ठीक हूँ, धन्यवाद। कल मिलते हैं।",
+    "ar": "مرحباً، كيف حالك؟ أنا بخير، شكراً. نلتقي غداً.",
+    "fa": "سلام، حال شما چطور است؟ من خوبم، ممنون. فردا همدیگر را می‌بینیم.",
+    "ps": "سلام، تاسو څنګه یاست؟ زه ښه یم، مننه. سبا به سره ووینو.",
+    "sd": "السلام عليڪم، توهان ڪيئن آهيو؟ مان ٺيڪ آهيان، مهرباني. سڀاڻي ملنداسين.",
 }
 # Whisper language code used for each Hushtype language. Whisper writes Punjabi
 # in Gurmukhi, so Punjabi is decoded as Urdu (Urdu script) with a Punjabi prompt.
@@ -46,16 +51,34 @@ def model_on_disk(model_name: str) -> bool:
         return False
 
 
+def _model_folder(model_name: str):
+    from pathlib import Path
+
+    from faster_whisper.utils import _MODELS
+    from huggingface_hub import constants
+
+    repo = _MODELS.get(model_name, model_name)
+    return Path(constants.HF_HUB_CACHE) / ("models--" + repo.replace("/", "--"))
+
+
+def delete_model_files(model_name: str) -> int:
+    """Removes a downloaded model from disk. Returns the bytes freed."""
+    import shutil
+
+    folder = _model_folder(model_name)
+    if not folder.exists():
+        return 0
+    size = sum(f.stat().st_size for f in folder.rglob("*") if f.is_file() and not f.is_symlink())
+    shutil.rmtree(folder, ignore_errors=True)
+    return size
+
+
 def model_cache_bytes(model_name: str) -> int:
     """Bytes of this model already in the download cache (finished or partial)."""
     from pathlib import Path
 
     try:
-        from faster_whisper.utils import _MODELS
-        from huggingface_hub import constants
-
-        repo = _MODELS.get(model_name, model_name)
-        folder = Path(constants.HF_HUB_CACHE) / ("models--" + repo.replace("/", "--"))
+        folder = _model_folder(model_name)
         return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file() and not f.is_symlink())
     except Exception:
         return 0

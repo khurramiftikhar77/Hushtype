@@ -41,7 +41,7 @@ class FakeModel:
 
     def transcribe(self, audio, language):
         return {"en": "um, thanks for sharing this, new paragraph. Khurram",
-                "ur": "السلام علیکم", "pa": "کی حال اے"}[language]
+                "ur": "السلام علیکم", "pa": "کی حال اے", "ar": "مرحبا"}[language]
 
 
 class FakeHotkeys:
@@ -315,3 +315,40 @@ def test_punjabi_dictation_saved_as_punjabi(env):
     eng.begin_recording(); eng.finish_recording(); run(eng)
     assert pasted[-1] == "کی حال اے "
     assert store.last()["language"] == "pa"
+
+
+def test_languages_share_models_by_name_and_can_be_removed(env, tmp_path):
+    eng, settings, store, pasted, focused, loaded, _ = env
+    deleted = []
+    eng._delete_model = lambda name: deleted.append(name) or 123
+    settings.update({"languages_enabled": ["en", "ur", "pa", "ar"]})
+    before = len(loaded)
+    eng.get_model("ar")  # Arabic uses large-v3-turbo by default, already loaded for Urdu
+    eng.get_model("ur")
+    assert len(loaded) - before <= 1
+    assert eng.get_model("ar") is eng.get_model("ur")
+    assert eng.remove_model("ar") == 123 and deleted == ["large-v3-turbo"]
+    assert "large-v3-turbo" not in eng.models
+
+
+def test_language_cycle_uses_enabled_languages(env):
+    eng, settings, store, *_ = env
+    settings.update({"languages_enabled": ["en", "ar"]})
+    store.update_project(1, language="en")
+    eng.toggle_language()
+    assert store.project(1)["language"] == "ar"
+    eng.toggle_language()
+    assert store.project(1)["language"] == "auto"
+
+
+def test_auto_picks_other_enabled_language(env):
+    eng, settings, store, *_ = env
+    settings.update({"languages_enabled": ["en", "ur", "ar"]})
+    FakeModel.detected = {"ar": 0.7, "ur": 0.1, "en": 0.1}
+    assert eng.detect_language(None) == "ar"
+    FakeModel.detected = {"ur": 0.5, "hi": 0.3, "ar": 0.1, "en": 0.1}
+    assert eng.detect_language(None) == "ur"
+    settings.update({"languages_enabled": ["en", "ur"]})
+    FakeModel.detected = {"ar": 0.7, "ur": 0.1, "en": 0.1}
+    assert eng.detect_language(None) == "ur"  # Arabic not enabled
+    FakeModel.detected = {"ur": 0.6, "hi": 0.3, "en": 0.1}

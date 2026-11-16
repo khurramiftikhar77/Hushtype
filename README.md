@@ -67,6 +67,16 @@ The main window (open it from the tray icon) has four screens:
 
 Closing the window keeps Hushtype running in the tray. To quit, right-click the tray icon.
 
+## Languages
+
+The **Languages** screen lists English, Urdu, Punjabi, Hindi, Arabic, Persian, Pashto and Sindhi. For each you can:
+
+- **Download** it (once, with a progress bar) and **Remove** it to free disk space
+- choose its **quality**: Fast, Balanced or Best (larger and slower)
+- choose whether it appears in the **language switch** on Home and with Right Alt + L
+
+All languages except English share one multilingual model, so downloading Urdu also makes Hindi, Arabic and Persian available without another download. Pashto and Sindhi are marked experimental: Whisper is much weaker in them.
+
 ## Urdu
 
 Urdu uses a larger multilingual model (`large-v3-turbo`, about 1.6 GB) that downloads the first time you switch a project to Urdu. On a laptop CPU, expect a few seconds more per sentence than English. Text is written in Urdu script. Mixing English and Urdu in one sentence is not supported well by Whisper yet: pick one language per dictation.

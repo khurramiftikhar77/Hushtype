@@ -17,27 +17,34 @@ from hushtype.paths import settings_path
 
 log = logging.getLogger(__name__)
 
-LANGUAGES = {"auto": "Auto", "en": "English", "ur": "Urdu", "pa": "Punjabi"}
+LANGUAGES = {"auto": "Auto", "en": "English", "ur": "Urdu", "pa": "Punjabi", "hi": "Hindi",
+             "ar": "Arabic", "fa": "Persian", "ps": "Pashto", "sd": "Sindhi"}
+NATIVE_NAMES = {"ur": "اردو", "pa": "پنجابی", "hi": "हिन्दी", "ar": "العربية", "fa": "فارسی",
+                "ps": "پښتو", "sd": "سنڌي"}
+RTL_LANGUAGES = ["ur", "pa", "ar", "fa", "ps", "sd"]
 # Which downloaded model each language uses. Punjabi (Pakistani, written in
 # Urdu script / Shahmukhi) shares the Urdu model, steered by a Punjabi prompt.
-MODEL_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur", "detect": "detect"}
+MODEL_LANGUAGE = {"pa": "ur"}  # Punjabi shares the Urdu model setting; others have their own
 # Auto: a small multilingual model listens first and decides which model writes the text.
 # Whisper often labels Urdu speech as Hindi (they sound the same), so both count as Urdu.
 SOUTH_ASIAN = ("ur", "hi", "pa")
-EXPERIMENTAL_LANGUAGES = ["pa"]
+EXPERIMENTAL_LANGUAGES = ["pa", "ps", "sd"]
 
-MODELS = {
-    "en": {
-        "base.en": "Fast (lower accuracy)",
-        "small.en": "Balanced (recommended)",
-        "medium.en": "Accurate (slower)",
-    },
-    "ur": {
-        "small": "Fast (weak Urdu)",
-        "medium": "Balanced",
-        "large-v3-turbo": "Best Urdu (recommended, slower)",
-    },
+ENGLISH_MODELS = {
+    "base.en": "Fast (lower accuracy)",
+    "small.en": "Balanced (recommended)",
+    "medium.en": "Accurate (slower)",
 }
+MULTILINGUAL_MODELS = {
+    "small": "Fast (weaker)",
+    "medium": "Balanced",
+    "large-v3-turbo": "Best (recommended, slower)",
+}
+MODELS = {"en": ENGLISH_MODELS, "ur": MULTILINGUAL_MODELS}
+
+
+def model_options(language: str) -> dict:
+    return ENGLISH_MODELS if language == "en" else MULTILINGUAL_MODELS
 MODEL_SIZES = {
     "base.en": "150 MB", "small.en": "490 MB", "medium.en": "1.5 GB",
     "small": "490 MB", "medium": "1.5 GB", "large-v3-turbo": "1.6 GB",
@@ -73,6 +80,8 @@ DEFAULTS: dict = {
     "ur_model": "large-v3-turbo",
     "detect_model": "base",  # language detector for Auto
     "auto_other": "ur",  # Auto: Urdu-sounding speech is written as Urdu ("ur") or Punjabi ("pa")
+    "languages_enabled": ["en", "ur", "pa"],  # shown in the language switch
+    "models": {},  # model for languages other than English/Urdu, e.g. {"ar": "large-v3-turbo"}
     "beam_size": 5,
     "cpu_threads": 0,
     "min_duration": 0.4,

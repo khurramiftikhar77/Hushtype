@@ -12,7 +12,8 @@ import time
 from hushtype import BUILD, __version__, winutil
 from hushtype.engine import Engine
 from hushtype.paths import data_dir, resource_path
-from hushtype.settings import (HOTKEYS, LANGUAGES, MAX_RECORDING, MODEL_SIZES, MODELS, REVIEW_INTERVALS, Settings)
+from hushtype.settings import (EXPERIMENTAL_LANGUAGES, HOTKEYS, LANGUAGES, MAX_RECORDING, MODEL_LANGUAGE, MODEL_SIZES,
+                               MODELS, NATIVE_NAMES, REVIEW_INTERVALS, RTL_LANGUAGES, Settings, model_options)
 from hushtype.store import Store
 
 log = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ class Api:
             "settings": self._s.all(),
             "options": {
                 "languages": LANGUAGES,
+                "native": NATIVE_NAMES,
+                "rtl": RTL_LANGUAGES,
+                "experimental": EXPERIMENTAL_LANGUAGES,
                 "models": MODELS,
                 "model_sizes": MODEL_SIZES,
                 "hotkeys": HOTKEYS,
@@ -80,6 +84,63 @@ class Api:
                 "error": self._e.model_errors.get(lang),
             }
         return out
+
+    def languages(self) -> list[dict]:
+        """Everything the Languages screen shows, one entry per language."""
+        e, s = self._e, self._s
+        live = e.live()
+        enabled = e.enabled_languages()
+        out = []
+        for code, name in LANGUAGES.items():
+            if code == "auto":
+                continue
+            model = e.model_name(code)
+            slot = MODEL_LANGUAGE.get(code, code)
+            shared = [LANGUAGES[o] for o in LANGUAGES if o not in ("auto", code) and e.model_name(o) == model and o in enabled]
+            out.append({
+                "code": code, "name": name, "native": NATIVE_NAMES.get(code, ""),
+                "enabled": code in enabled, "model": model, "slot": slot,
+                "options": {k: f"{v.split(' (')[0]}{' (recommended)' if 'recommended' in v else ''} · {MODEL_SIZES.get(k, '')}"
+                            for k, v in model_options(code).items()},
+                "on_disk": e.model_ready_on_disk(code), "loading": slot in e.loading_models,
+                "download": live["downloads"].get(slot), "shared_with": shared,
+                "experimental": code in EXPERIMENTAL_LANGUAGES, "rtl": code in RTL_LANGUAGES,
+                "uses_urdu_model": code == "pa",
+            })
+        detector = e.model_name("detect")
+        return {"languages": out, "detector": {"model": detector, "size": "145 MB",
+                                                "on_disk": e.model_ready_on_disk("detect"),
+                                                "loading": "detect" in e.loading_models}}
+
+    def set_language_enabled(self, code: str, enabled: bool) -> dict:
+        langs = [l for l in self._s["languages_enabled"] if l != code]
+        if enabled:
+            langs.append(code)
+        order = [l for l in LANGUAGES if l in langs]
+        if not order:
+            order = ["en"]
+        self.set_settings({"languages_enabled": order})
+        return self.languages()
+
+    def set_language_model(self, code: str, model: str) -> dict:
+        slot = MODEL_LANGUAGE.get(code, code)
+        if model not in model_options(code):
+            raise ValueError("Unknown model")
+        if slot in ("en", "ur"):
+            self.set_settings({f"{slot}_model": model})
+        else:
+            models = dict(self._s["models"])
+            models[slot] = model
+            self.set_settings({"models": models})
+        return self.languages()
+
+    def download_language(self, code: str) -> bool:
+        self._e.download_model(code)
+        return True
+
+    def remove_language(self, code: str) -> dict:
+        freed = self._e.remove_model(code)
+        return {"freed": freed, "languages": self.languages()}
 
     def mics(self) -> list[dict]:
         try:
