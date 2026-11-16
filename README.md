@@ -54,6 +54,7 @@ Edit `config.toml` in the app folder, then restart Hushtype.
 
 | Setting | What it does |
 |---------|--------------|
+| `audio.mic` | Microphone to use; part of its name from `--list-devices`. Empty = Windows default |
 | `hotkey.key` | Push-to-talk key, e.g. `alt_r`, `ctrl_r`, `f13` |
 | `model.name` | `base.en` (fastest), `small.en` (default), `medium.en` (most accurate, slower) |
 | `output.remove_fillers` | Strip "um", "uh" and similar |
@@ -64,7 +65,8 @@ Edit `config.toml` in the app folder, then restart Hushtype.
 
 ## Troubleshooting
 
-- **Nothing happens when I hold Right Alt.** Run `start.bat -v` from a terminal and check the log. Make sure the tray icon is green.
+- **Wrong or made-up text ("You", "Thank you", a random website).** Hushtype is not getting clean audio. Run `.\start.bat --mic-test`: it shows the recording level, saves `hushtype_mic_test.wav` so you can hear what it heard, and prints the text. If it is the wrong microphone, run `.\start.bat --list-devices` and set `mic` under `[audio]` in `config.toml`. Bluetooth headsets often give poor audio on Windows; the laptop mic is usually better.
+- **Nothing happens when I hold Right Alt.** Run `.\start.bat -v` from a terminal and check the log. Make sure the tray icon is green.
 - **No audio / empty text.** Check Windows Settings > Privacy & security > Microphone, and allow desktop apps to use the microphone.
 - **Setup is blocked.** Windows Smart App Control can block Python. Check Windows Security > App & browser control.
 - **Too slow.** Switch `model.name` to `base.en`.

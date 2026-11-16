@@ -46,7 +46,7 @@ class App:
         if self.cfg.beep:
             from hushtype.output import beep
             beep(False)
-        if len(audio) < self.cfg.min_duration * self.cfg.sample_rate:
+        if len(audio) < self.cfg.min_duration * 16000:
             self._state("idle")
             return
         self._state("working")
@@ -81,11 +81,8 @@ class App:
 
         try:
             log.info("Loading model '%s' (first run downloads it)...", self.cfg.model_name)
-            self.transcriber = Transcriber(
-                self.cfg.model_name, self.cfg.device, self.cfg.compute_type,
-                self.cfg.beam_size, self.cfg.vocabulary,
-            )
-            self.recorder = Recorder(self.cfg.sample_rate, self.cfg.preroll)
+            self.transcriber = _make_transcriber(self.cfg)
+            self.recorder = Recorder(self.cfg.mic, self.cfg.preroll)
             self.recorder.start_stream()
             self.hotkey = PushToTalk(self.cfg.hotkey, self._on_down, self._on_up)
             self.hotkey.start()
@@ -118,23 +115,84 @@ class App:
         self.tray.run(setup)
 
 
+def _make_transcriber(cfg):
+    from hushtype.transcriber import Transcriber
+
+    return Transcriber(cfg.model_name, cfg.device, cfg.compute_type, cfg.beam_size,
+                       cfg.vocabulary, cfg.cpu_threads)
+
+
+def _print_result(cfg, raw: str) -> None:
+    print("RAW:  ", raw)
+    print("CLEAN:", clean(raw, fillers=cfg.remove_fillers, replacements=cfg.replacements))
+
+
 def transcribe_file(path: str, config_path: Path | None) -> None:
     """Debug helper: transcribe an audio file without the hotkey or tray."""
     from faster_whisper import decode_audio
 
-    from hushtype.transcriber import Transcriber
+    cfg = load_config(config_path)
+    _print_result(cfg, _make_transcriber(cfg).transcribe(decode_audio(path, sampling_rate=16000)))
+
+
+def list_devices() -> None:
+    import sounddevice as sd
+
+    from hushtype.audio import list_input_devices
+
+    default = sd.default.device[0]
+    print("Microphones (put part of a name in config.toml under [audio] mic):\n")
+    for idx, name, api in list_input_devices():
+        mark = "  <- Windows default" if idx == default else ""
+        print(f"  [{idx:>2}] {name}  ({api}){mark}")
+
+
+def mic_test(config_path: Path | None, seconds: float = 5.0) -> None:
+    """Records a few seconds, reports the level, saves a WAV and transcribes it."""
+    import time
+    import wave
+
+    import numpy as np
+
+    from hushtype.audio import Recorder, levels
 
     cfg = load_config(config_path)
-    t = Transcriber(cfg.model_name, cfg.device, cfg.compute_type, cfg.beam_size, cfg.vocabulary)
-    raw = t.transcribe(decode_audio(path, sampling_rate=16000))
-    print("RAW:  ", raw)
-    print("CLEAN:", clean(raw, fillers=cfg.remove_fillers, replacements=cfg.replacements))
+    rec = Recorder(cfg.mic, preroll=0)
+    rec.start_stream()
+    print("Loading model...")
+    t = _make_transcriber(cfg)
+    input(f"Press Enter, then speak for {seconds:.0f} seconds...")
+    rec.begin()
+    time.sleep(seconds)
+    audio = rec.end()
+    rec.close()
+
+    peak, rms = levels(audio)
+    print(f"\nLevel: peak {peak:.0f} dB, average {rms:.0f} dB")
+    if peak < -40:
+        print("  Too quiet: the mic is muted, the wrong device, or its volume is very low.")
+    elif peak > -1:
+        print("  Clipping: the input volume is too high.")
+    else:
+        print("  Level looks fine.")
+
+    out = Path("hushtype_mic_test.wav").resolve()
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
+    print(f"Saved recording to {out} (play it to hear what Hushtype hears)\n")
+    _print_result(cfg, t.transcribe(audio))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="hushtype", description=__doc__)
     parser.add_argument("--config", type=Path, help="path to config.toml")
     parser.add_argument("--file", help="transcribe an audio file and exit (for testing)")
+    parser.add_argument("--list-devices", action="store_true", help="list microphones and exit")
+    parser.add_argument("--mic-test", action="store_true",
+                        help="record 5 seconds, show level, save WAV, transcribe")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -143,6 +201,12 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         stream=sys.stdout,
     )
+    if args.list_devices:
+        list_devices()
+        return
+    if args.mic_test:
+        mic_test(args.config)
+        return
     if args.file:
         transcribe_file(args.file, args.config)
         return

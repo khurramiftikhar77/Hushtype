@@ -14,9 +14,14 @@ name = "small.en"
 device = "cpu"
 compute_type = "int8"
 beam_size = 5
+# CPU threads for transcription. 0 = automatic.
+cpu_threads = 0
 
 [audio]
-sample_rate = 16000
+# Microphone to use. Empty = Windows default.
+# Run "start.bat --list-devices" to see names, then put part of a name here,
+# e.g. mic = "Microphone Array"
+mic = ""
 # Ignore presses shorter than this (seconds), e.g. accidental taps.
 min_duration = 0.4
 # Audio kept from just before the key press so the first word is not cut off.

@@ -9,14 +9,20 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+# Segments this unsure are almost always Whisper guessing at noise
+# ("You", "Thank you.", "Facebook.com"), so they are dropped instead of pasted.
+MIN_AVG_LOGPROB = -1.0
+MAX_NO_SPEECH_PROB = 0.6
+
 
 class Transcriber:
     def __init__(self, model_name: str, device: str = "cpu", compute_type: str = "int8",
-                 beam_size: int = 5, vocabulary: list[str] | None = None):
+                 beam_size: int = 5, vocabulary: list[str] | None = None, cpu_threads: int = 0):
         from faster_whisper import WhisperModel  # heavy import, keep it lazy
 
         t0 = time.perf_counter()
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        self.model = WhisperModel(model_name, device=device, compute_type=compute_type,
+                                  cpu_threads=cpu_threads)
         log.info("Loaded model %s in %.1fs", model_name, time.perf_counter() - t0)
         self.beam_size = beam_size
         self.prompt = ", ".join(vocabulary) if vocabulary else None
@@ -28,10 +34,23 @@ class Transcriber:
             audio,
             language="en",
             beam_size=self.beam_size,
+            # One pass only. The default retries up to 6 times at higher
+            # temperatures, which on a laptop CPU costs many seconds and
+            # rarely helps with short dictation.
+            temperature=0.0,
             vad_filter=True,
             condition_on_previous_text=False,
             initial_prompt=self.prompt,
         )
-        text = " ".join(s.text.strip() for s in segments).strip()
+        kept = []
+        for s in segments:
+            if s.avg_logprob < MIN_AVG_LOGPROB and s.no_speech_prob > MAX_NO_SPEECH_PROB:
+                log.info("Dropped unsure segment %r (logprob %.2f, no-speech %.2f)",
+                         s.text, s.avg_logprob, s.no_speech_prob)
+                continue
+            log.debug("Segment %r (logprob %.2f, no-speech %.2f)",
+                      s.text, s.avg_logprob, s.no_speech_prob)
+            kept.append(s.text.strip())
+        text = " ".join(kept).strip()
         log.info("Transcribed %.1fs of audio in %.1fs", len(audio) / 16000, time.perf_counter() - t0)
         return text
