@@ -72,7 +72,7 @@ class Api:
 
     def models(self) -> dict:
         out = {}
-        for lang in LANGUAGES:
+        for lang in ("en", "ur", "detect"):
             out[lang] = {
                 "name": self._e.model_name(lang),
                 "on_disk": self._e.model_ready_on_disk(lang),

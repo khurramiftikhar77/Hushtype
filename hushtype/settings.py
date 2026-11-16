@@ -17,10 +17,13 @@ from hushtype.paths import settings_path
 
 log = logging.getLogger(__name__)
 
-LANGUAGES = {"en": "English", "ur": "Urdu", "pa": "Punjabi"}
+LANGUAGES = {"auto": "Auto", "en": "English", "ur": "Urdu", "pa": "Punjabi"}
 # Which downloaded model each language uses. Punjabi (Pakistani, written in
 # Urdu script / Shahmukhi) shares the Urdu model, steered by a Punjabi prompt.
-MODEL_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur"}
+MODEL_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur", "detect": "detect"}
+# Auto: a small multilingual model listens first and decides which model writes the text.
+# Whisper often labels Urdu speech as Hindi (they sound the same), so both count as Urdu.
+SOUTH_ASIAN = ("ur", "hi", "pa")
 EXPERIMENTAL_LANGUAGES = ["pa"]
 
 MODELS = {
@@ -41,7 +44,7 @@ MODEL_SIZES = {
 }
 # Approximate download sizes in bytes, for the progress bar.
 MODEL_BYTES = {
-    "tiny.en": 75_000_000, "base.en": 145_000_000, "small.en": 484_000_000, "medium.en": 1_530_000_000,
+    "tiny.en": 75_000_000, "base": 145_000_000, "base.en": 145_000_000, "small.en": 484_000_000, "medium.en": 1_530_000_000,
     "small": 484_000_000, "medium": 1_530_000_000, "large-v3-turbo": 1_620_000_000,
 }
 SETTINGS_VERSION = 3
@@ -68,6 +71,8 @@ DEFAULTS: dict = {
     "mic": "",  # device name; empty = Windows default
     "en_model": "small.en",
     "ur_model": "large-v3-turbo",
+    "detect_model": "base",  # language detector for Auto
+    "auto_other": "ur",  # Auto: Urdu-sounding speech is written as Urdu ("ur") or Punjabi ("pa")
     "beam_size": 5,
     "cpu_threads": 0,
     "min_duration": 0.4,

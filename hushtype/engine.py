@@ -16,12 +16,13 @@ from typing import Callable
 import numpy as np
 
 from hushtype.cleanup import clean
-from hushtype.settings import LANGUAGES, MODEL_LANGUAGE, Settings, now_iso
+from hushtype.settings import LANGUAGES, MODEL_LANGUAGE, SOUTH_ASIAN, Settings, now_iso
 from hushtype.store import INBOX_ID, Store
 
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
+AUTO_ENGLISH_CONFIDENCE = 0.7
 FLASH_SECONDS = 1.6
 
 
@@ -96,8 +97,9 @@ class Engine:
         lang = self._active_project()["language"]
         try:
             self.get_model("en")
-            if lang != "en" and self.model_ready_on_disk(lang):
-                self.get_model(lang)
+            for extra in self._models_for(lang):
+                if extra != "en" and self.model_ready_on_disk(extra):
+                    self.get_model(extra)
         except Exception as e:
             log.exception("Could not load the speech model")
             self._set("error", f"Could not load the speech model: {e}")
@@ -238,6 +240,24 @@ class Engine:
                 if self.live_state.state == "model":
                     self._set("working" if prev == "working" else "idle", "Ready")
 
+    @staticmethod
+    def _models_for(language: str) -> list[str]:
+        """Model slots a language needs: Auto needs the detector and both writers."""
+        return ["detect", "en", "ur"] if language == "auto" else [language]
+
+    def detect_language(self, audio) -> str:
+        """Auto mode: English or (Urdu / Punjabi, as chosen in Settings)."""
+        probs = self.get_model("detect").detect(audio)
+        english = probs.get("en", 0.0)
+        south = sum(probs.get(k, 0.0) for k in SOUTH_ASIAN)
+        other = self.settings["auto_other"] if self.settings["auto_other"] in ("ur", "pa") else "ur"
+        # English only when the detector is clearly sure: short Urdu was sometimes
+        # mistaken for English, never the other way round. 0.7 scored 60/60 Urdu
+        # and 60/60 English on 3 s of real speech (Google FLEURS).
+        choice = "en" if english >= AUTO_ENGLISH_CONFIDENCE else other
+        log.info("Auto language: %s (English %.2f, Urdu/Hindi/Punjabi %.2f)", choice, english, south)
+        return choice
+
     def _watch_download(self, language: str, name: str) -> None:
         """Tracks download progress by watching the model's cache folder grow."""
         from hushtype.settings import MODEL_BYTES
@@ -263,8 +283,9 @@ class Engine:
     def download_model(self, language: str) -> None:
         def run():
             try:
-                self.get_model(language)
-                self.flash("pasted", f"{LANGUAGES[language]} model ready")
+                for slot in self._models_for(language):
+                    self.get_model(slot)
+                self.flash("pasted", f"{LANGUAGES.get(language, language)} ready")
             except Exception as e:
                 log.exception("Model download failed")
                 self.flash("warn", f"Download failed: {e}")
@@ -363,13 +384,13 @@ class Engine:
         new = order[(order.index(p["language"]) + 1) % len(order)] if p["language"] in order else "en"
         self.store.update_project(p["id"], language=new)
         self.flash("info", f"{p['name']}: {LANGUAGES[new]}")
-        if not self.model_ready_on_disk(new):
+        if not all(self.model_ready_on_disk(m) for m in self._models_for(new)):
             self.download_model(new)
 
     def set_language(self, language: str) -> None:
         p = self._active_project()
         self.store.update_project(p["id"], language=language)
-        if not self.model_ready_on_disk(language):
+        if not all(self.model_ready_on_disk(m) for m in self._models_for(language)):
             self.download_model(language)
 
     def repaste(self) -> None:
@@ -404,12 +425,18 @@ class Engine:
 
     def _process(self, job: Job) -> dict | None:
         t0 = time.perf_counter()
-        model = self.get_model(job.language)
+        language = job.language
+        detected = language == "auto"
+        if detected:
+            language = self.detect_language(job.audio)
+            with self._lock:
+                self.live_state.language = language  # the pill and theme follow the detected language
+        model = self.get_model(language)
         self._set("working", "Transcribing")
-        raw = model.transcribe(job.audio, job.language)
+        raw = model.transcribe(job.audio, language)
         p = job.project
         s = self.settings
-        text = clean(raw, language=job.language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
+        text = clean(raw, language=language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
                      spoken_commands=s["spoken_commands"], replacements=s["replacements"],
                      snippets=s["snippets"])
         took = time.perf_counter() - t0
@@ -421,6 +448,8 @@ class Engine:
         self.last_text = text
         words = len(text.split())
         plural = "s" if words != 1 else ""
+        if detected:
+            plural += f" · {LANGUAGES[language]}"
         if job.from_app:
             if self._copy:
                 self._copy(text)
@@ -436,7 +465,7 @@ class Engine:
                 self._copy(text)
             self.flash("pasted", f"Copied · {words} word{plural} · Ctrl+V to paste")
         if s["save_history"]:
-            return self.store.add(project_id=p["id"], language=job.language, duration=round(job.duration, 2),
+            return self.store.add(project_id=p["id"], language=language, duration=round(job.duration, 2),
                                   process_time=round(took, 2), text=text.strip(), raw_text=raw, app=job.app)
         return None
 

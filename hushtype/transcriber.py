@@ -91,6 +91,16 @@ class Transcriber:
             base += " " + ", ".join(self.vocabulary) + "."
         return base
 
+    def detect(self, audio: np.ndarray) -> dict[str, float]:
+        """Language probabilities for the audio, e.g. {"en": 0.9, "ur": 0.05, ...}."""
+        with self._lock:
+            try:
+                _lang, _p, all_probs = self.model.detect_language(audio, vad_filter=True)
+            except Exception:  # e.g. only silence
+                log.debug("Language detection failed", exc_info=True)
+                return {}
+        return dict(all_probs)
+
     def transcribe(self, audio: np.ndarray, language: str = "en") -> str:
         """audio: mono float32 at 16 kHz. language: 'en' or 'ur'."""
         t0 = time.perf_counter()

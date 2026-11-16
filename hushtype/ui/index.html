@@ -431,6 +431,7 @@ function render() {
 function langToggle() {
   const lang = activeProject().language;
   return `<div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}">
+    <button type="button" data-lang="auto" aria-pressed="${lang === "auto"}" title="Hushtype hears whether you speak English or Urdu/Punjabi">Auto</button>
     <button type="button" data-lang="en" aria-pressed="${lang === "en"}">English</button>
     <button type="button" data-lang="ur" aria-pressed="${lang === "ur"}">Urdu <span class="urdu" style="font-size:13px;line-height:1">اردو</span></button>
     <button type="button" data-lang="pa" aria-pressed="${lang === "pa"}" title="Pakistani Punjabi, written in Urdu script. Experimental.">Punjabi <span class="urdu" style="font-size:13px;line-height:1">پنجابی</span></button></div>`;
@@ -473,7 +474,7 @@ function viewHome() {
     <div class="row" style="flex-basis:100%;gap:8px">
       <span class="chip"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span>
       <span class="chip">${esc(S.options.languages[p.language])}</span>
-      <span class="chip">Model: ${esc((S.options.models[p.language === "pa" ? "ur" : p.language] || {})[S.settings[(p.language === "pa" ? "ur" : p.language) + "_model"]] || "")}</span>
+      ${p.language === "auto" ? `<span class="chip">Detects English or ${S.settings.auto_other === "pa" ? "Punjabi" : "Urdu"}</span>` : `<span class="chip">Model: ${esc((S.options.models[p.language === "pa" ? "ur" : p.language] || {})[S.settings[(p.language === "pa" ? "ur" : p.language) + "_model"]] || "")}</span>`}
       ${p.language === "pa" ? '<span class="chip">Punjabi is experimental</span>' : ""}
       ${st.avg_wait != null ? `<span class="chip">Avg. wait ${st.avg_wait.toFixed(1)} s</span>` : ""}
     </div>
@@ -498,7 +499,7 @@ function viewHome() {
     <div class="howto">
       <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding and let go. The text is copied: press Ctrl+V to paste it anywhere. Or click the microphone above.</p></div>
       <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: English, Urdu, Punjabi.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: Auto, English, Urdu, Punjabi. Auto hears which one you speak.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Copy again.</b> Copies your last dictation again, if you copied something else in between.</p></div>
       <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
@@ -633,6 +634,7 @@ function viewSettings() {
     ${sel("max_seconds", "Longest recording", "Stops by itself and copies the text. Shorter recordings come back faster, especially in Urdu and Punjabi", S.options.max_recording)}
     ${sw("hands_free", "Hands-free double-tap", isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])} to record without holding` : `Double-tap ${esc(keyName())} to record without holding`)}
     ${sw("language_switch_key", `${esc(modName())} + L and ${esc(modName())} + V`, "Switch language, and copy the last dictation again")}
+    ${sel("auto_other", "Auto: Urdu-sounding speech is", "Auto tells English from Urdu/Punjabi. Urdu and Punjabi sound too alike to tell apart, so choose how to write them", { ur: "Written as Urdu", pa: "Written as Punjabi (experimental)" })}
     ${modelRow("en")}
     ${modelRow("ur")}
   </section>
@@ -703,7 +705,7 @@ function projectDialog(p) {
   const isNew = !p; p = p || { name: "", language: activeProject().language, remove_fillers: true, capitalize: true, rules: [] };
   dialog(`<h2>${isNew ? "New project" : "Edit project"}</h2>
     <div class="field"><label for="pn">Name</label><input id="pn" type="text" value="${esc(p.name)}" placeholder="e.g. Email, Work, Poetry" ${p.id === 1 ? "" : ""}></div>
-    <div class="field"><label for="pl">Language</label><select id="pl"><option value="en" ${p.language === "en" ? "selected" : ""}>English</option><option value="ur" ${p.language === "ur" ? "selected" : ""}>Urdu</option><option value="pa" ${p.language === "pa" ? "selected" : ""}>Punjabi (Urdu script, experimental)</option></select></div>
+    <div class="field"><label for="pl">Language</label><select id="pl"><option value="en" ${p.language === "en" ? "selected" : ""}>English</option><option value="ur" ${p.language === "ur" ? "selected" : ""}>Urdu</option><option value="pa" ${p.language === "pa" ? "selected" : ""}>Punjabi (Urdu script, experimental)</option><option value="auto" ${p.language === "auto" ? "selected" : ""}>Auto (English or Urdu/Punjabi)</option></select></div>
     <div class="setting"><div class="label"><b id="l-pf">Remove filler words</b><span>"um", "uh" (English only)</span></div><button type="button" class="switch" aria-labelledby="l-pf" id="pf" aria-pressed="${p.remove_fillers}"></button></div>
     <div class="setting"><div class="label"><b id="l-pc">Capitalise sentences</b><span>Turn off for poetry or casual chat</span></div><button type="button" class="switch" aria-labelledby="l-pc" id="pc" aria-pressed="${p.capitalize}"></button></div>
     <div class="field"><label for="pr">Auto-file from these apps (optional)</label><input id="pr" type="text" value="${esc(p.rules.join(", "))}" placeholder="e.g. outlook, gmail"><span class="sub" style="font-size:12.5px">When you dictate in a window whose app or title contains one of these words, it goes to this project.</span></div>

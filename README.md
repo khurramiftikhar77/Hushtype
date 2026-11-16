@@ -8,6 +8,7 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 
 - **Dictate anywhere:** the text is copied to your clipboard; paste it with Ctrl+V wherever you want. Optional: paste automatically
 - **Click to dictate:** the microphone button on Home starts and stops recording
+- **Auto language:** Hushtype hears whether you speak English or Urdu/Punjabi and picks the right model by itself
 - **English, Urdu and Punjabi:** switch per project, or with Right Alt + L. Punjabi (Pakistani) is written in Urdu script and is experimental
 - **Automatic punctuation:** commas, full stops and question marks are added for you. Say "new line" or "new paragraph" for line breaks.
 - **Projects:** group dictations (Email, Work, Poetry...). Each project has its own language and text style, and can auto-file by app (Outlook goes to Email).

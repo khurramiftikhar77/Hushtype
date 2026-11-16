@@ -31,12 +31,17 @@ class FakeRecorder:
 
 
 class FakeModel:
+    detected = {"ur": 0.6, "hi": 0.3, "en": 0.1}
+
     def __init__(self, name):
         self.name = name
 
+    def detect(self, audio):
+        return dict(FakeModel.detected)
+
     def transcribe(self, audio, language):
         return {"en": "um, thanks for sharing this, new paragraph. Khurram",
-                "ur": "السلام علیکم"}[language]
+                "ur": "السلام علیکم", "pa": "کی حال اے"}[language]
 
 
 class FakeHotkeys:
@@ -148,6 +153,8 @@ def test_toggle_language_and_repaste(env):
     eng.toggle_language()
     assert store.project(1)["language"] == "pa"
     eng.toggle_language()
+    assert store.project(1)["language"] == "auto"
+    eng.toggle_language()
     assert store.project(1)["language"] == "en"
     eng.repaste()
     assert pasted == []  # nothing yet
@@ -247,6 +254,23 @@ def test_recording_stops_at_the_time_limit(env):
     assert eng.live()["state"] != "recording"
 
 
+def test_auto_detects_urdu_and_english(env):
+    eng, settings, store, pasted, *_ = env
+    store.update_project(1, language="auto")
+    FakeModel.detected = {"ur": 0.5, "hi": 0.3, "en": 0.2}
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert store.last()["language"] == "ur"
+    assert "Urdu" in eng.live()["flash"]["text"]
+    FakeModel.detected = {"en": 0.9, "ur": 0.05}
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert store.last()["language"] == "en"
+    settings.update({"auto_other": "pa"})
+    FakeModel.detected = {"hi": 0.8, "en": 0.1}  # Urdu speech is often labelled Hindi
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert store.last()["language"] == "pa"
+    FakeModel.detected = {"ur": 0.6, "hi": 0.3, "en": 0.1}
+
+
 def test_copy_only_is_the_default(tmp_path):
     assert Settings(tmp_path / "fresh.json")["auto_paste"] is False
 
@@ -278,8 +302,8 @@ def test_punjabi_uses_urdu_model_and_cycles(env):
     model = eng.get_model("pa")
     assert eng.get_model("ur") is model  # one shared model, loaded once
     eng.toggle_language()
-    assert store.project(1)["language"] == "en"
-    eng.toggle_language(); eng.toggle_language()
+    assert store.project(1)["language"] == "auto"
+    eng.toggle_language(); eng.toggle_language(); eng.toggle_language()
     assert store.project(1)["language"] == "pa"
 
 
