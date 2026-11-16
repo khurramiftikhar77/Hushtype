@@ -12,6 +12,18 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 - Custom vocabulary and spelling fixes for names and terms
 - Tray icon that shows what it is doing
 
+## Privacy
+
+Hushtype is built so that nothing you say leaves your computer.
+
+- **Speech is processed on your laptop.** Audio goes from your microphone to the Whisper model running locally. It is never uploaded anywhere.
+- **One download, then offline.** The first time a model is used, it is downloaded once from [Hugging Face](https://huggingface.co/Systran) (about 250 MB for English). After that Hushtype loads it from disk and makes no network connections at all. Usage statistics to Hugging Face are switched off. No audio or text is ever sent.
+- **Audio is not saved.** Recordings live in memory only while you hold the key, then they are discarded. The one exception is `--mic-test`, which saves a test recording in the current folder so you can listen to it.
+- **The keyboard listener only reacts to its own shortcut.** Hushtype has to listen to the keyboard to notice when you hold Right Alt. It does not record, store or send any other keys.
+- **Your clipboard is restored.** Hushtype pastes through the clipboard, then puts back what you had copied before.
+- **No accounts, no tracking, no analytics.** The code has no telemetry and no network calls. You can check: it is all in this repository.
+- **Dependencies are pinned** to exact versions in `pyproject.toml`, so a future release of a third-party library cannot change what you install without an intentional update.
+
 ## Requirements
 
 - Windows 10 or 11
@@ -99,3 +111,7 @@ hushtype/
 config.toml       user settings
 start.bat         one-click setup and launch
 ```
+
+## License
+
+[MIT](LICENSE). Free to use, change and share.
