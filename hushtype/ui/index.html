@@ -679,9 +679,10 @@ function viewSettings() {
   <section class="glass card" aria-labelledby="h-mic"><h2 id="h-mic">Microphone</h2>
     <div class="row"><label for="s-mic" style="position:absolute;left:-9999px">Microphone</label>
       <select id="s-mic" data-set="mic" style="flex:1 1 300px;min-width:0">${Object.entries(mics).map(([v, l]) => `<option value="${esc(v)}" ${s.mic === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
-      <button class="btn solid" data-test-mic ${t === "running" ? "disabled" : ""}>${t === "running" ? "Listening for 4 seconds..." : "Test microphone"}</button></div>
+      <button class="btn solid" data-test-mic ${t === "running" ? "disabled" : ""}>${t === "running" ? "Listening for 4 seconds..." : "Test microphone"}</button>
+      <button class="btn" data-reconnect-mic>Reconnect</button></div>
     <div class="row" style="gap:14px"><span style="font-size:13px;color:var(--muted);width:76px">Input level</span><div class="meter" role="meter" aria-label="Input level"><i id="meter"></i></div></div>
-    ${t && t !== "running" ? `<p class="sub">${t.error ? "Problem: " + esc(t.error) : `Heard: <b>${esc(t.text || "(nothing)")}</b>`} ${t.peak != null ? `· peak ${Math.round(t.peak)} dB${t.peak < -40 ? " (too quiet: check the mic or its volume)" : ""}` : ""}</p>` : `<p class="sub">Speak normally: the bar should reach about the middle. Bluetooth headsets often sound worse than the laptop mic.</p>`}
+    ${t && t !== "running" ? `<p class="sub">${t.error ? "Problem: " + esc(t.error) : `Heard: <b>${esc(t.text || "(nothing)")}</b>`} ${t.peak != null ? `· peak ${Math.round(t.peak)} dB${t.peak < -40 ? " (too quiet: check the mic or its volume)" : ""}` : ""}</p>` : `<p class="sub">Speak normally: the bar should reach about the middle. If it never moves: press Reconnect, pick another microphone, or turn on Windows Settings > Privacy &amp; security > Microphone > "Let desktop apps access your microphone".</p>`}
   </section>
 
   <section class="glass card" aria-labelledby="h-keys" style="gap:0"><h2 id="h-keys" style="margin-bottom:8px">Shortcut and language</h2>
@@ -802,7 +803,7 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-autodetect],[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-reconnect-mic],[data-autodetect],[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
@@ -850,6 +851,7 @@ document.addEventListener("click", async (e) => {
   if ("addSnip" in d) { const sn = { ...S.settings.snippets }; let k = "new snippet", i = 2; while (k in sn) k = `new snippet ${i++}`; sn[k] = ""; S.settings = await api().set_settings({ snippets: sn }); render(); return; }
   if (d.rmSnip) { const e2 = Object.entries(S.settings.snippets); e2.splice(Number(d.rmSnip), 1); S.settings = await api().set_settings({ snippets: Object.fromEntries(e2) }); render(); return; }
   if ("openFolder" in d) return api().open_data_folder();
+  if ("reconnectMic" in d) { const ok = await api().reconnect_mic(); S.mics = await api().mics(); render(); return toast(ok ? "Microphone reconnected" : "No microphone found. Check that it is plugged in and allowed in Windows privacy settings."); }
   if (d.langDownload) { await api().download_language(d.langDownload); toast("Download started. You can keep working."); setTimeout(loadLanguages, 600); return; }
   if (d.langRemove) {
     const L = S.langs.languages.find((x) => x.code === d.langRemove);

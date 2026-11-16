@@ -187,6 +187,9 @@ class Api:
         self._gui.refresh_tray()
         return self._e.live()
 
+    def reconnect_mic(self) -> bool:
+        return self._e.reconnect_mic()
+
     def set_autodetect(self, on: bool) -> dict:
         self._e.set_autodetect(bool(on))
         self._gui.refresh_tray()

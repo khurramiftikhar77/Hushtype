@@ -22,8 +22,9 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 - **Recording pill:** a small timer and sound wave at the bottom of the screen while you talk
 - **Filler removal:** "um", "uh", "erm" are dropped
 - **Learns from you:** fix a word in History and Hushtype spells it that way from then on; names you use often are learned automatically
-- **Light and dark themes**, following Windows or chosen in Settings
-- **Truck art look** in Urdu and Punjabi mode, with painted flowers and chamak-patti borders
+- **Themes:** System, Light, Dark and **Truck art** (Pakistani truck painting, with painted flowers and chamak-patti borders)
+- **Mix mode:** several languages in one dictation; each part between pauses is written in its own language
+- **Auto-detect switch** on Home: on, Hushtype hears the language; off, it sticks to the one you pick
 - **Runs in the tray** and can start with Windows
 - **Fully offline** after a one-time model download (with a progress bar)
 - **Update button:** Settings > Updates checks GitHub for a new version and installs it, only when you press it
@@ -79,6 +80,8 @@ The **Languages** screen lists English, Urdu, Punjabi, Hindi, Arabic, Persian, P
 - choose its **quality**: Fast, Balanced or Best (larger and slower)
 - choose whether it appears in the **language switch** on Home and with Right Alt + L
 
+Urdu and Punjabi also offer **Fast, Urdu-tuned** (250 MB), a community model retrained on Urdu. In our test on 40 unseen Urdu recordings it made 26% word errors, against 37% for the standard Fast model at the same speed and 22% for Best.
+
 All languages except English share one multilingual model, so downloading Urdu also makes Hindi, Arabic and Persian available without another download. Pashto and Sindhi are marked experimental: Whisper is much weaker in them.
 
 ## Urdu
@@ -112,6 +115,7 @@ Hushtype is built so that nothing you say leaves your computer.
 ## Troubleshooting
 
 - **Made-up text like "You" or "Thank you".** Hushtype is not getting clean audio. In Settings, pick your microphone and press **Test microphone**: speak and check that the level bar moves to about the middle. Bluetooth headsets often give poor audio on Windows; the laptop microphone is usually better.
+- **Nothing is recorded / "No sound from the mic".** Hushtype now reconnects the microphone by itself when it stops delivering sound (after sleep, unplugging a headset, or a new default mic). If it persists: Settings > Microphone > Reconnect, pick your microphone, and check Windows Settings > Privacy & security > Microphone > "Let desktop apps access your microphone".
 - **Nothing happens when I hold Right Alt + Space.** Check the tray icon: grey means it is still loading the model. If you use a keyboard layout where Right Alt is AltGr, pick another shortcut in Settings.
 - **I copied something else in between.** Press Right Alt + V to copy your last dictation again.
 - **Too slow.** In Settings, choose the Fast model.

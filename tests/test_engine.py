@@ -10,6 +10,8 @@ from hushtype.store import Store
 
 class FakeRecorder:
     level = 0.5
+    alive = True
+    name = "Fake mic"
 
     def __init__(self, seconds=2.0):
         self.seconds = seconds
@@ -27,7 +29,7 @@ class FakeRecorder:
         pass
 
     def end(self):
-        return np.zeros(int(16000 * self.seconds), dtype=np.float32)
+        return np.full(int(16000 * self.seconds), 0.1, dtype=np.float32)
 
 
 class FakeModel:
@@ -334,6 +336,25 @@ def test_language_cycle_includes_mix(env):
     assert store.project(1)["language"] == "mix"
     eng.toggle_language()
     assert store.project(1)["language"] == "auto"
+
+
+def test_silent_recording_warns_and_reconnects(env):
+    eng, settings, store, pasted, *_ = env
+    eng.recorder.end = lambda: np.zeros(16000 * 2, dtype=np.float32)
+    old = eng.recorder
+    eng.begin_recording(); eng.finish_recording()
+    assert eng._jobs.empty()
+    assert "No sound" in eng.live()["flash"]["text"]
+    eng.begin_recording()  # reconnects before recording again
+    assert eng.recorder is not old
+
+
+def test_dead_stream_is_reopened(env):
+    eng, *_ = env
+    old = eng.recorder
+    old.alive = False
+    eng.begin_recording()
+    assert eng.recorder is not old and eng.live()["state"] == "recording"
 
 
 def test_copy_only_is_the_default(tmp_path):

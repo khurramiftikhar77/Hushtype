@@ -10,6 +10,7 @@ from __future__ import annotations
 import collections
 import logging
 import threading
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -71,9 +72,21 @@ def _resample(audio: np.ndarray, src: int, dst: int) -> np.ndarray:
     return np.interp(x_new, x_old, audio).astype(np.float32)
 
 
+def refresh_devices() -> None:
+    """Re-reads the list of microphones from Windows (new headsets, changed default)."""
+    try:
+        sd._terminate()
+        sd._initialize()
+    except Exception:
+        log.debug("Could not refresh the device list", exc_info=True)
+
+
 class Recorder:
-    def __init__(self, device: str | int | None = None, preroll: float = 0.3):
+    def __init__(self, device: str | int | None = None, preroll: float = 0.3, refresh: bool = False):
+        if refresh:
+            refresh_devices()
         self.device = resolve_device(device)
+        self.last_block = 0.0  # time of the latest audio block, to spot a dead stream
         self._lock = threading.Lock()
         self._recording = False
         self._chunks: list[np.ndarray] = []
@@ -99,10 +112,21 @@ class Recorder:
             blocksize=self._blocksize,
             callback=self._callback,
         )
-        log.info("Microphone: %s (%d Hz)", device_name(self.device), self.rate)
+        self.name = device_name(self.device)
+        log.info("Microphone: %s (%d Hz)", self.name, self.rate)
 
     def start_stream(self) -> None:
         self._stream.start()
+        self.last_block = time.monotonic()
+
+    @property
+    def alive(self) -> bool:
+        """True while Windows keeps delivering audio (it stops after sleep or unplugging)."""
+        try:
+            active = bool(self._stream.active)
+        except Exception:
+            return False
+        return active and time.monotonic() - self.last_block < 1.5
 
     def close(self) -> None:
         self._stream.stop()
@@ -111,6 +135,7 @@ class Recorder:
     def _callback(self, indata, frames, time_info, status) -> None:
         if status:
             log.debug("Audio status: %s", status)
+        self.last_block = time.monotonic()
         block = indata[:, 0].copy()
         rms = float(np.sqrt(np.mean(block**2))) if block.size else 0.0
         self.level_db = 20 * np.log10(rms) if rms > 1e-9 else -100.0

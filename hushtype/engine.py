@@ -22,6 +22,7 @@ from hushtype.store import INBOX_ID, Store
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
+SILENT_PEAK = 0.001  # -60 dB: no sound at all reached Hushtype
 AUTO_ENGLISH_CONFIDENCE = 0.7
 FLASH_SECONDS = 1.6
 
@@ -138,7 +139,8 @@ class Engine:
             except Exception:
                 pass
 
-    def _open_recorder(self) -> None:
+    def _open_recorder(self, refresh: bool = False) -> bool:
+        """(Re)opens the microphone. Returns True when it works."""
         if self.recorder:
             try:
                 self.recorder.close()
@@ -146,12 +148,26 @@ class Engine:
                 pass
             self.recorder = None
         try:
-            self.recorder = self._recorder_factory(self.settings["mic"], self.settings["preroll"])
+            try:
+                self.recorder = self._recorder_factory(self.settings["mic"], self.settings["preroll"], refresh)
+            except TypeError:  # factories that take no refresh flag
+                self.recorder = self._recorder_factory(self.settings["mic"], self.settings["preroll"])
             self.recorder.start_stream()
+            self._mic_suspect = False
+            if self.live_state.state == "error":
+                self._set("idle", "Ready")
+            return True
         except Exception as e:
             log.exception("Microphone failed")
             self.recorder = None
-            self._set("error", f"Microphone not available: {e}")
+            self._set("error", f"Microphone not available: {e}. Check that a microphone is connected, "
+                               "and that Windows allows desktop apps to use it.")
+            return False
+
+    def reconnect_mic(self) -> bool:
+        ok = self._open_recorder(refresh=True)
+        self.flash("pasted" if ok else "warn", "Microphone reconnected" if ok else "No microphone found")
+        return ok
 
     def _open_hotkeys(self) -> None:
         if self.hotkeys:
@@ -400,9 +416,13 @@ class Engine:
         if state in ("loading",):
             self.flash("info", "Still starting, one moment")
             return
-        if self.recorder is None:
-            self.flash("warn", "No microphone. Check Settings.")
-            return
+        recorder_ok = self.recorder is not None and getattr(self.recorder, "alive", True)
+        if not recorder_ok or getattr(self, "_mic_suspect", False):
+            # The stream died (sleep, headset unplugged, default mic changed): reconnect first.
+            log.info("Microphone not delivering audio, reconnecting")
+            if not self._open_recorder(refresh=True):
+                self.flash("warn", "No microphone. Check Settings > Microphone")
+                return
         if from_app:  # the button in Hushtype's own window: no app rules, no pasting
             target = {"hwnd": 0, "app": "Hushtype", "project": self._active_project(), "from_app": True}
         else:
@@ -465,6 +485,13 @@ class Engine:
         duration = len(audio) / SAMPLE_RATE
         if duration < self.settings["min_duration"] or target is None:
             self._set("idle", "Ready")
+            return
+        if audio.size and float(np.max(np.abs(audio))) < SILENT_PEAK:
+            # Nothing at all came in: wrong/muted mic or Windows privacy blocking it.
+            log.warning("Recording was completely silent (%s)", getattr(self.recorder, "name", "?"))
+            self._mic_suspect = True  # reconnect before the next recording
+            self._set("idle", "Ready")
+            self.flash("warn", "No sound from the mic. Check Settings > Microphone and Windows privacy")
             return
         self._set("working", "Transcribing")
         self._jobs.put(Job(audio=audio, project=target["project"], language=self.live_state.language,
@@ -651,7 +678,7 @@ def default_engine(settings: Settings, store: Store, on_state=None) -> Engine:
 
     return Engine(
         settings, store,
-        recorder_factory=lambda mic, preroll: Recorder(mic, preroll),
+        recorder_factory=lambda mic, preroll, refresh=False: Recorder(mic, preroll, refresh),
         transcriber_factory=lambda name, beam, vocab, threads: Transcriber(
             name, beam_size=beam, vocabulary=vocab, cpu_threads=threads),
         hotkeys_factory=lambda key, actions, hands_free, combos: Hotkeys(key, actions, hands_free, combos),
