@@ -1,138 +1,54 @@
-"""Hushtype: hold a key, speak, release, and the text is pasted where you type."""
+"""Hushtype: hold a key, speak, release, and the text is typed where you are."""
 
 from __future__ import annotations
 
 import argparse
 import logging
-import queue
+import logging.handlers
 import sys
-import threading
 from pathlib import Path
 
+from hushtype import __version__
 from hushtype.cleanup import clean
-from hushtype.config import load_config
+from hushtype.paths import log_path
 
 log = logging.getLogger("hushtype")
 
 
-class App:
-    def __init__(self, config_path: Path | None = None):
-        self.cfg = load_config(config_path)
-        self.jobs: queue.Queue = queue.Queue()
-        self.ready = threading.Event()
-        self.tray = None
-        self.recorder = None
-        self.transcriber = None
-        self.hotkey = None
-
-    # state shown in tray
-    def _state(self, s: str) -> None:
-        if self.tray:
-            self.tray.set_state(s)
-
-    def _on_down(self) -> None:
-        if not self.ready.is_set():
-            return
-        self.recorder.begin()
-        self._state("recording")
-        if self.cfg.beep:
-            from hushtype.output import beep
-            beep(True)
-
-    def _on_up(self) -> None:
-        if not self.ready.is_set():
-            return
-        audio = self.recorder.end()
-        if self.cfg.beep:
-            from hushtype.output import beep
-            beep(False)
-        if len(audio) < self.cfg.min_duration * 16000:
-            self._state("idle")
-            return
-        self._state("working")
-        self.jobs.put(audio)
-
-    def _worker(self) -> None:
-        from hushtype.output import paste_text
-
-        while True:
-            audio = self.jobs.get()
-            if audio is None:
-                return
-            try:
-                raw = self.transcriber.transcribe(audio)
-                text = clean(raw, fillers=self.cfg.remove_fillers,
-                             replacements=self.cfg.replacements)
-                log.info("Text: %r", text)
-                if text:
-                    if self.cfg.trailing_space:
-                        text += " "
-                    paste_text(text)
-            except Exception:
-                log.exception("Transcription failed")
-            finally:
-                if self.jobs.empty():
-                    self._state("idle")
-
-    def _load(self) -> None:
-        from hushtype.audio import Recorder
-        from hushtype.hotkey import PushToTalk
-        from hushtype.transcriber import Transcriber
-
-        try:
-            log.info("Loading model '%s' (first run downloads it)...", self.cfg.model_name)
-            self.transcriber = _make_transcriber(self.cfg)
-            self.recorder = Recorder(self.cfg.mic, self.cfg.preroll)
-            self.recorder.start_stream()
-            self.hotkey = PushToTalk(self.cfg.hotkey, self._on_down, self._on_up)
-            self.hotkey.start()
-            threading.Thread(target=self._worker, daemon=True).start()
-            self.ready.set()
-            self._state("idle")
-            log.info("Ready. Hold %s and speak.", self.cfg.hotkey)
-        except Exception:
-            log.exception("Startup failed")
-            self.quit()
-
-    def quit(self) -> None:
-        self.jobs.put(None)
-        if self.hotkey:
-            self.hotkey.stop()
-        if self.recorder:
-            self.recorder.close()
-        if self.tray:
-            self.tray.stop()
-
-    def run(self) -> None:
-        from hushtype.tray import Tray
-
-        self.tray = Tray(on_quit=self.quit)
-
-        def setup(icon):
-            icon.visible = True
-            threading.Thread(target=self._load, daemon=True).start()
-
-        self.tray.run(setup)
+def setup_logging(verbose: bool) -> None:
+    handlers: list[logging.Handler] = [
+        logging.handlers.RotatingFileHandler(log_path(), maxBytes=1_000_000, backupCount=2, encoding="utf-8")
+    ]
+    if sys.stdout is not None:  # no console in the installed (windowed) app
+        handlers.append(logging.StreamHandler(sys.stdout))
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
+    for noisy in ("httpx", "huggingface_hub", "faster_whisper", "urllib3", "PIL"):
+        logging.getLogger(noisy).setLevel(logging.WARNING if not verbose else logging.INFO)
 
 
-def _make_transcriber(cfg):
+# ---------- command-line helpers ----------
+
+def _transcriber(language: str):
+    from hushtype.settings import Settings
     from hushtype.transcriber import Transcriber
 
-    return Transcriber(cfg.model_name, cfg.device, cfg.compute_type, cfg.beam_size,
-                       cfg.vocabulary, cfg.cpu_threads)
+    s = Settings()
+    return s, Transcriber(s[f"{language}_model"], beam_size=s["beam_size"], vocabulary=s["vocabulary"],
+                          cpu_threads=s["cpu_threads"])
 
 
-def _print_result(cfg, raw: str) -> None:
+def _print_result(settings, raw: str, language: str) -> None:
     print("RAW:  ", raw)
-    print("CLEAN:", clean(raw, fillers=cfg.remove_fillers, replacements=cfg.replacements))
+    print("CLEAN:", clean(raw, language=language, replacements=settings["replacements"],
+                          snippets=settings["snippets"], spoken_commands=settings["spoken_commands"]))
 
 
-def transcribe_file(path: str, config_path: Path | None) -> None:
-    """Debug helper: transcribe an audio file without the hotkey or tray."""
+def transcribe_file(path: str, language: str) -> None:
     from faster_whisper import decode_audio
 
-    cfg = load_config(config_path)
-    _print_result(cfg, _make_transcriber(cfg).transcribe(decode_audio(path, sampling_rate=16000)))
+    s, t = _transcriber(language)
+    _print_result(s, t.transcribe(decode_audio(path, sampling_rate=16000), language), language)
 
 
 def list_devices() -> None:
@@ -141,13 +57,13 @@ def list_devices() -> None:
     from hushtype.audio import list_input_devices
 
     default = sd.default.device[0]
-    print("Microphones (put part of a name in config.toml under [audio] mic):\n")
+    print("Microphones (choose one in Settings inside the app):\n")
     for idx, name, api in list_input_devices():
         mark = "  <- Windows default" if idx == default else ""
         print(f"  [{idx:>2}] {name}  ({api}){mark}")
 
 
-def mic_test(config_path: Path | None, seconds: float = 5.0) -> None:
+def mic_test(language: str, seconds: float = 5.0) -> None:
     """Records a few seconds, reports the level, saves a WAV and transcribes it."""
     import time
     import wave
@@ -156,17 +72,14 @@ def mic_test(config_path: Path | None, seconds: float = 5.0) -> None:
 
     from hushtype.audio import Recorder, levels
 
-    cfg = load_config(config_path)
-    rec = Recorder(cfg.mic, preroll=0)
+    s, t = _transcriber(language)
+    rec = Recorder(s["mic"], preroll=0)
     rec.start_stream()
-    print("Loading model...")
-    t = _make_transcriber(cfg)
     input(f"Press Enter, then speak for {seconds:.0f} seconds...")
     rec.begin()
     time.sleep(seconds)
     audio = rec.end()
     rec.close()
-
     peak, rms = levels(audio)
     print(f"\nLevel: peak {peak:.0f} dB, average {rms:.0f} dB")
     if peak < -40:
@@ -175,7 +88,6 @@ def mic_test(config_path: Path | None, seconds: float = 5.0) -> None:
         print("  Clipping: the input volume is too high.")
     else:
         print("  Level looks fine.")
-
     out = Path("hushtype_mic_test.wav").resolve()
     with wave.open(str(out), "wb") as w:
         w.setnchannels(1)
@@ -183,34 +95,115 @@ def mic_test(config_path: Path | None, seconds: float = 5.0) -> None:
         w.setframerate(16000)
         w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
     print(f"Saved recording to {out} (play it to hear what Hushtype hears)\n")
-    _print_result(cfg, t.transcribe(audio))
+    _print_result(s, t.transcribe(audio, language), language)
+
+
+def self_test(out_path: str) -> int:
+    """Checks that a packaged build can load everything. Used by the installer build."""
+    import tempfile
+    import traceback
+
+    lines, ok = [], True
+
+    def check(name, fn):
+        nonlocal ok
+        try:
+            result = fn()
+            lines.append(f"OK   {name}{': ' + str(result) if result is not None else ''}")
+        except Exception:
+            ok = False
+            lines.append(f"FAIL {name}\n{traceback.format_exc()}")
+
+    def transcribe_silence():
+        import numpy as np
+
+        from hushtype.transcriber import Transcriber
+
+        t = Transcriber("tiny.en")
+        return repr(t.transcribe(np.zeros(16000, dtype=np.float32), "en"))
+
+    def store_roundtrip():
+        from hushtype.store import Store
+
+        with tempfile.TemporaryDirectory() as d:
+            s = Store(Path(d) / "t.db")
+            s.create_project("Test", rules=["x"])
+            n = len(s.projects())
+            s.close()
+            return n
+
+    check("version", lambda: __version__)
+    check("ui files", lambda: [p.name for p in __import__("hushtype.paths", fromlist=["x"]).resource_path("ui").iterdir()])
+    check("numpy", lambda: __import__("numpy").__version__)
+    check("ctranslate2", lambda: __import__("ctranslate2").__version__)
+    check("onnxruntime", lambda: __import__("onnxruntime").__version__)
+    check("av", lambda: __import__("av").__version__)
+    check("sounddevice", lambda: __import__("sounddevice").get_portaudio_version()[1])
+    check("pynput", lambda: __import__("pynput.keyboard", fromlist=["x"]).Listener.__name__)
+    check("pystray", lambda: __import__("pystray").Icon.__module__)
+    check("webview", lambda: __import__("webview").__name__)
+    check("pyperclip", lambda: __import__("pyperclip").__name__)
+    check("store", store_roundtrip)
+    check("whisper tiny.en + VAD", transcribe_silence)
+    lines.append("RESULT " + ("PASS" if ok else "FAIL"))
+    Path(out_path).write_text("\n".join(lines), encoding="utf-8")
+    return 0 if ok else 1
+
+
+# ---------- the app ----------
+
+def run_app(background: bool) -> None:
+    from hushtype import winutil
+    from hushtype.engine import default_engine
+    from hushtype.gui import Gui
+    from hushtype.settings import Settings
+    from hushtype.store import Store
+
+    instance = winutil.SingleInstance()
+    if instance.already_running:
+        log.info("Hushtype is already running; bringing it to the front")
+        instance.notify_running()
+        return
+
+    settings = Settings()
+    store = Store()
+    if settings.first_run and settings["start_with_windows"]:
+        try:
+            winutil.set_autostart(True)
+        except Exception:
+            log.exception("Could not enable start-with-Windows")
+
+    gui: Gui | None = None
+    engine = default_engine(settings, store, on_state=lambda s: gui and gui.on_engine_state(s))
+    gui = Gui(settings, store, engine, start_hidden=background)
+    instance.listen(gui.show_main)
+    log.info("Hushtype %s starting", __version__)
+    gui.run()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="hushtype", description=__doc__)
-    parser.add_argument("--config", type=Path, help="path to config.toml")
+    parser.add_argument("--background", action="store_true", help="start in the tray without opening the window")
     parser.add_argument("--file", help="transcribe an audio file and exit (for testing)")
+    parser.add_argument("--language", default="en", choices=["en", "ur"], help="language for --file / --mic-test")
     parser.add_argument("--list-devices", action="store_true", help="list microphones and exit")
-    parser.add_argument("--mic-test", action="store_true",
-                        help="record 5 seconds, show level, save WAV, transcribe")
+    parser.add_argument("--mic-test", action="store_true", help="record 5 seconds, show level, save WAV, transcribe")
+    parser.add_argument("--self-test", metavar="OUT", help="check the installation and write a report to OUT")
+    parser.add_argument("--version", action="version", version=f"Hushtype {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        stream=sys.stdout,
-    )
+    if args.self_test:
+        sys.exit(self_test(args.self_test))
+    setup_logging(args.verbose)
     if args.list_devices:
         list_devices()
-        return
-    if args.mic_test:
-        mic_test(args.config)
-        return
-    if args.file:
-        transcribe_file(args.file, args.config)
-        return
-    App(args.config).run()
+    elif args.mic_test:
+        mic_test(args.language)
+    elif args.file:
+        transcribe_file(args.file, args.language)
+    else:
+        run_app(args.background)
 
 
 if __name__ == "__main__":

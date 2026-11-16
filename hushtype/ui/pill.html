@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hushtype recording</title>
+<style>
+:root {
+  color-scheme: dark;
+  --pill: rgba(16,20,32,0.88);
+  --edge: rgba(255,255,255,0.28);
+  --text: #FFFFFF;
+  --muted: rgba(255,255,255,0.75);
+  --rec: #F87171;
+  --ok: #2DD4BF;
+  --warn: #FDBA74;
+  --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, monospace;
+}
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; cursor: default; }
+body { display: flex; align-items: center; justify-content: center; font: 500 14.5px var(--font); color: var(--text); }
+.pill { display: flex; align-items: center; gap: 12px; padding: 9px 18px 9px 10px; border-radius: 999px; background: var(--pill);
+  border: 1px solid var(--edge); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 10px 26px rgba(0,0,0,.35); max-width: 360px; transition: opacity .15s; }
+.pill.hidden { opacity: 0; }
+.badge { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.badge.rec { background: rgba(248,113,113,.25); }
+.badge.rec i { width: 12px; height: 12px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 12px var(--rec); animation: beat 1s ease-in-out infinite; }
+.badge.ok { background: var(--ok); box-shadow: 0 0 14px rgba(45,212,191,.6); }
+.badge.warn { background: rgba(251,146,60,.3); }
+.spinner { width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #A5B4FC; box-sizing: border-box; animation: spin .8s linear infinite; }
+.wave { display: flex; align-items: center; gap: 3px; height: 28px; }
+.wave span { width: 3px; border-radius: 2px; background: #fff; height: 4px; transition: height .08s linear; }
+.time { font-family: var(--mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.lang { padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.18); font-size: 12px; font-weight: 600; }
+.lang.ur { background: rgba(251,146,60,.38); }
+.hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes beat { 50% { transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .spinner, .badge.rec i { animation: none; } }
+</style>
+</head>
+<body>
+<div class="pill hidden" id="pill" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+const pill = document.getElementById("pill");
+const BARS = 14;
+const levels = new Array(BARS).fill(0);
+let lastMode = null;
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const check = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B1220" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
+const warn = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FED7AA" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></svg>';
+
+function render(l) {
+  let mode, html;
+  if (l.state === "recording") {
+    mode = "rec";
+    if (lastMode !== mode) {
+      levels.fill(0);
+      html = `<div class="badge rec"><i></i></div><div class="wave" aria-hidden="true">${"<span></span>".repeat(BARS)}</div>
+        <span class="time" id="t">0:00</span><span class="lang ${l.language}">${l.language.toUpperCase()}</span><span class="hint" id="hf"></span>`;
+    }
+  } else if (l.state === "working" || l.state === "model") {
+    mode = "busy:" + l.message;
+    html = `<div class="spinner" aria-hidden="true"></div><span class="msg">${esc(l.state === "model" ? l.message : "Transcribing")}</span>`;
+  } else if (l.flash) {
+    mode = "flash:" + l.flash.text;
+    const b = l.flash.kind === "pasted" ? `<div class="badge ok">${check}</div>` : `<div class="badge warn">${warn}</div>`;
+    html = `${b}<span class="msg">${esc(l.flash.text)}</span>`;
+  } else {
+    mode = "none";
+  }
+  if (mode !== lastMode) {
+    lastMode = mode;
+    if (mode === "none") pill.classList.add("hidden");
+    else { pill.innerHTML = html; pill.classList.remove("hidden"); }
+  }
+  if (mode === "rec") {
+    levels.push(l.level); levels.shift();
+    const bars = pill.querySelectorAll(".wave span");
+    bars.forEach((b, i) => { b.style.height = Math.max(4, Math.round(4 + levels[i] * 24)) + "px"; });
+    const t = document.getElementById("t"); if (t) t.textContent = fmt(l.elapsed);
+    const hf = document.getElementById("hf"); if (hf) hf.textContent = l.hands_free ? "Hands-free · tap to stop" : "";
+  }
+}
+
+async function loop() {
+  try { render(await window.pywebview.api.live()); } catch (e) { /* window still starting */ }
+  setTimeout(loop, lastMode === "rec" ? 70 : 200);
+}
+if (window.pywebview && window.pywebview.api && window.pywebview.api.live) loop();
+else window.addEventListener("pywebviewready", loop);
+</script>
+</body>
+</html>

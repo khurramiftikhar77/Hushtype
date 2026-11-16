@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hushtype</title>
+<style>
+/* Layout: glass sidebar + content on a dark ground with soft colour glows. Single deliberate dark look. */
+:root {
+  color-scheme: dark;
+  --ground: #0B1220;
+  --text: #FFFFFF;
+  --muted: rgba(255,255,255,0.78);
+  --faint: rgba(255,255,255,0.62);
+  --glass: rgba(255,255,255,0.10);
+  --glass-strong: rgba(255,255,255,0.16);
+  --edge: rgba(255,255,255,0.22);
+  --edge-strong: rgba(255,255,255,0.32);
+  --shine: inset 0 1px 0 rgba(255,255,255,0.32);
+  --accent: #2DD4BF;
+  --accent-glow: rgba(45,212,191,0.45);
+  --rec: #F87171;
+  --warn: #FDBA74;
+  --solid: rgba(255,255,255,0.93);
+  --solid-text: #0B1220;
+  --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --urdu: "Noto Nastaliq Urdu", "Urdu Typesetting", "Jameel Noori Nastaleeq", "Segoe UI", serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--text); font: 14px/1.5 var(--font); overflow: hidden; user-select: none; }
+.glow { position: fixed; border-radius: 50%; pointer-events: none; filter: blur(10px); }
+.g1 { width: 620px; height: 620px; left: -140px; top: -180px; background: radial-gradient(circle, rgba(45,212,191,.7), transparent 68%); }
+.g2 { width: 720px; height: 720px; right: -200px; top: 60px; background: radial-gradient(circle, rgba(129,140,248,.65), transparent 68%); }
+.g3 { width: 600px; height: 600px; left: 28%; bottom: -320px; background: radial-gradient(circle, rgba(251,146,60,.5), transparent 68%); }
+.app { position: relative; display: flex; gap: 18px; padding: 18px; height: 100%; }
+.glass { background: var(--glass); backdrop-filter: blur(32px) saturate(170%); border: 1px solid var(--edge); box-shadow: var(--shine); }
+
+nav { flex: 0 0 236px; border-radius: 26px; padding: 22px 14px; display: flex; flex-direction: column; gap: 26px; box-shadow: var(--shine), 0 24px 60px rgba(4,8,20,.35); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; font: 700 20px var(--display); letter-spacing: -.01em; }
+.navlist { display: flex; flex-direction: column; gap: 4px; }
+.navlist button { all: unset; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; color: var(--muted); font-weight: 500; cursor: pointer; }
+.navlist button:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.navlist button[aria-current="page"] { background: rgba(255,255,255,.2); color: var(--text); font-weight: 600; box-shadow: var(--shine); }
+.navlist button:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin-top: auto; padding: 14px; border-radius: 18px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.dot.rec { background: var(--rec); box-shadow: 0 0 10px var(--rec); }
+.dot.busy { background: #A5B4FC; box-shadow: 0 0 10px #A5B4FC; }
+.dot.off { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+
+main { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 14px clamp(6px, 2.4vw, 34px) 40px; }
+main::-webkit-scrollbar { width: 10px; } main::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 10px; }
+.view { display: flex; flex-direction: column; gap: 18px; max-width: 1040px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+h1 { margin: 0; font: 600 30px var(--display); letter-spacing: -.02em; }
+h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.sub { margin: 0; color: var(--muted); font-size: 14.5px; }
+.eyebrow { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.card { border-radius: 24px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.spread { justify-content: space-between; }
+.chip { padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.2); font-size: 12.5px; white-space: nowrap; }
+.tag { padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; border: 1px solid; }
+.tag.en { background: rgba(94,234,212,.2); border-color: rgba(94,234,212,.45); }
+.tag.ur { background: rgba(251,146,60,.22); border-color: rgba(253,186,116,.5); }
+.mono { font-family: var(--mono); }
+.urdu { font-family: var(--urdu); direction: rtl; text-align: right; line-height: 2.1; font-size: 1.12em; }
+
+button { font: inherit; color: inherit; }
+.btn { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--edge-strong); background: var(--glass-strong); box-shadow: var(--shine); color: var(--text); font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.btn:hover { background: rgba(255,255,255,.22); }
+.btn.solid { background: var(--solid); color: var(--solid-text); border: 0; font-weight: 600; box-shadow: 0 6px 18px rgba(4,8,20,.28); }
+.btn.solid:hover { background: #FFFFFF; }
+.btn.danger { background: rgba(248,113,113,.18); border-color: rgba(254,202,202,.5); color: #FFE4E4; }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn:disabled { opacity: .5; cursor: default; }
+.icon-btn { width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255,255,255,.12); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn:hover { background: rgba(255,255,255,.22); }
+.seg { display: inline-flex; padding: 4px; gap: 4px; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid var(--edge); box-shadow: var(--shine); }
+.seg button { border: 0; border-radius: 999px; padding: 0 18px; min-height: 38px; background: transparent; color: var(--text); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; }
+.seg button[aria-pressed="true"] { background: var(--solid); color: var(--solid-text); font-weight: 600; box-shadow: 0 4px 14px rgba(4,8,20,.25); }
+select, input[type=text], input[type=search], textarea { font: inherit; color: var(--text); background: rgba(255,255,255,.13); border: 1px solid var(--edge-strong); border-radius: 14px; min-height: 42px; padding: 0 14px; box-shadow: var(--shine); user-select: text; }
+textarea { padding: 10px 14px; resize: vertical; min-height: 70px; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+select option { color: #0B1220; }
+.switch { width: 50px; height: 30px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.16); padding: 2px; display: flex; justify-content: flex-start; cursor: pointer; flex: 0 0 auto; }
+.switch::after { content: ""; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(4,8,20,.3); }
+.switch[aria-pressed="true"] { background: var(--accent); border-color: transparent; justify-content: flex-end; box-shadow: 0 0 14px var(--accent-glow); }
+.setting { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+.setting:last-child { border-bottom: 0; }
+.setting .label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 260px; }
+.setting .label b { font-weight: 500; font-size: 15px; }
+.setting .label span { font-size: 13px; color: var(--muted); }
+.setting select { min-width: 220px; }
+.meter { flex: 1 1 auto; height: 10px; border-radius: 999px; background: rgba(255,255,255,.14); overflow: hidden; }
+.meter > i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #5EEAD4, #A5B4FC); box-shadow: 0 0 12px rgba(94,234,212,.6); transition: width .08s linear; }
+
+/* home */
+.hero { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 30px; padding: 32px; border-radius: 28px; box-shadow: var(--shine), 0 30px 70px rgba(4,8,20,.3); }
+.orb { width: 112px; height: 112px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 40px rgba(94,234,212,.35); transition: box-shadow .2s; }
+.orb > div { width: 76px; height: 76px; border-radius: 50%; background: var(--solid); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(4,8,20,.3); }
+.orb.rec { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 50px rgba(248,113,113,.6); animation: pulse 1.2s ease-in-out infinite; }
+.orb.busy { box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 50px rgba(165,180,252,.6); }
+@keyframes pulse { 50% { transform: scale(1.05); } }
+kbd { font-family: var(--mono); font-size: .8em; padding: 3px 10px; border-radius: 9px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 3px 0 rgba(4,8,20,.25); white-space: nowrap; }
+.hero h2 { font: 600 25px var(--display); letter-spacing: -.01em; }
+.big-text { margin: 0; font-size: 17px; line-height: 1.6; white-space: pre-wrap; user-select: text; }
+.meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.tile { border-radius: 20px; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; }
+.tile span { font-size: 13px; color: var(--muted); }
+.tile b { font: 600 28px var(--display); font-variant-numeric: tabular-nums; }
+.howto { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
+.how { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
+.how .k { flex: 0 0 170px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 12.5px; }
+.how p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.how p b { color: var(--text); font-weight: 600; }
+
+/* history & projects */
+.list { border-radius: 24px; display: flex; flex-direction: column; }
+.item { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 16px; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,.12); align-items: start; }
+.item:last-child { border-bottom: 0; }
+.item .when { display: flex; flex-direction: column; gap: 6px; font-size: 13px; align-items: flex-start; }
+.item .body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.item .text { margin: 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.item .actions { display: flex; gap: 6px; align-items: center; }
+.item select { min-height: 34px; font-size: 12.5px; padding: 0 8px; border-radius: 10px; min-width: 0; max-width: 130px; }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.pdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.pcard { border-radius: 22px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; text-align: left; min-height: 150px; }
+.pcard:hover { background: rgba(255,255,255,.15); }
+.pcard h3 { margin: 0; font: 600 18px var(--display); display: flex; align-items: center; gap: 10px; }
+.pcard.new { align-items: center; justify-content: center; border-style: dashed; color: var(--muted); font-weight: 500; }
+.combined { margin: 0; padding: 22px 26px; border-radius: 24px; font-size: 16px; line-height: 1.75; white-space: pre-wrap; user-select: text; }
+
+/* dialogs & toast */
+.backdrop { position: fixed; inset: 0; background: rgba(5,8,18,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+.dialog { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; border-radius: 28px; padding: 28px; display: flex; flex-direction: column; gap: 16px; background: rgba(30,38,60,.72); backdrop-filter: blur(40px) saturate(180%); border: 1px solid var(--edge-strong); box-shadow: var(--shine), 0 30px 80px rgba(4,8,20,.5); }
+.dialog h2 { font: 600 22px var(--display); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; color: var(--muted); }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 18px; border-radius: 999px; background: rgba(20,26,42,.9); border: 1px solid var(--edge-strong); box-shadow: 0 10px 30px rgba(4,8,20,.5); z-index: 60; font-weight: 500; }
+.snip { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.wordchip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; border-radius: 999px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); }
+.wordchip button { width: 24px; height: 24px; border: 0; border-radius: 50%; background: rgba(255,255,255,.15); color: #fff; cursor: pointer; }
+@media (max-width: 900px) { nav { flex-basis: 76px; } .brand span, .navlist span, .status { display: none; } .howto { grid-template-columns: 1fr; } .snip { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .orb.rec { animation: none; } .meter > i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="glow g1" aria-hidden="true"></div><div class="glow g2" aria-hidden="true"></div><div class="glow g3" aria-hidden="true"></div>
+<div class="app">
+  <nav class="glass" aria-label="Main">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect width="30" height="30" rx="10" fill="rgba(255,255,255,0.92)"/><rect x="12" y="7" width="6" height="11" rx="3" fill="#0B1220"/><path d="M9 15a6 6 0 0 0 12 0M15 21v3" stroke="#0B1220" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      <span>Hushtype</span>
+    </div>
+    <div class="navlist" id="nav"></div>
+    <div class="status" id="side-status"></div>
+  </nav>
+  <main id="main" tabindex="-1"><div class="view"><p class="sub">Starting Hushtype...</p></div></main>
+</div>
+<div id="layer"></div>
+
+<script>
+"use strict";
+const ICONS = {
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>',
+};
+const icon = (n, s = 18, color = "currentColor") => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const PCOLORS = { teal: "#2DD4BF", indigo: "#818CF8", orange: "#FB923C", pink: "#F472B6", sky: "#38BDF8", lime: "#A3E635" };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = (sel) => document.querySelector(sel);
+const api = () => window.pywebview.api;
+const fmtDur = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const dayLabel = (iso) => {
+  const d = new Date(iso), t = new Date(); const y = new Date(); y.setDate(t.getDate() - 1);
+  if (d.toDateString() === t.toDateString()) return "Today";
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+};
+
+const S = { view: "home", settings: {}, options: {}, projects: [], stats: {}, last: null, models: {}, live: null,
+  version: -1, history: [], hq: "", hlang: "", hproj: "", project: null, ptab: "list", mics: [], test: null };
+
+const keyName = () => (S.options.hotkeys || {})[S.settings.hotkey] || "Right Alt";
+const projectById = (id) => S.projects.find((p) => p.id === id) || S.projects[0] || { name: "Inbox", color: "teal" };
+const activeProject = () => projectById(S.settings.active_project);
+
+function toast(msg) {
+  const el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 2200);
+}
+
+/* ---------------- navigation ---------------- */
+function renderNav() {
+  const items = [["home", "Home"], ["history", "History"], ["projects", "Projects"], ["settings", "Settings"]];
+  const cur = S.view === "project" ? "projects" : S.view;
+  $("#nav").innerHTML = items.map(([k, label]) =>
+    `<button type="button" data-go="${k}" ${cur === k ? 'aria-current="page"' : ""}>${icon(k)}<span>${label}</span></button>`).join("");
+}
+function go(view, extra) {
+  S.view = view; if (extra) Object.assign(S, extra);
+  renderNav(); render(); $("#main").scrollTop = 0;
+}
+
+function renderSideStatus() {
+  const l = S.live || { state: "loading", message: "Starting..." };
+  const cls = { recording: "rec", working: "busy", model: "busy", loading: "busy", error: "off" }[l.state] || "";
+  const label = { idle: "Ready", recording: "Listening", working: "Transcribing", model: "Preparing model", loading: "Starting", error: "Needs attention" }[l.state];
+  const p = l.project && l.project.name ? l.project : activeProject();
+  $("#side-status").innerHTML = `<div class="row" style="gap:8px"><span class="dot ${cls}"></span><b>${label}</b></div>
+    <div style="color:var(--muted)">${esc(p.name)} · ${esc((S.options.languages || {})[l.language || p.language] || "")}<br>Offline on this laptop</div>`;
+}
+
+/* ---------------- views ---------------- */
+function render() {
+  const v = { home: viewHome, history: viewHistory, projects: viewProjects, project: viewProject, settings: viewSettings }[S.view];
+  $("#main").innerHTML = `<div class="view">${v()}</div>`;
+  if (S.view === "history" || S.view === "project") loadHistory();
+  if (S.view === "settings") startMeter(); else stopMeter();
+}
+
+function langToggle() {
+  const lang = activeProject().language;
+  return `<div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}">
+    <button type="button" data-lang="en" aria-pressed="${lang === "en"}">English</button>
+    <button type="button" data-lang="ur" aria-pressed="${lang === "ur"}">Urdu <span class="urdu" style="font-size:13px;line-height:1">اردو</span></button></div>`;
+}
+function projectSelect(id = "active-project") {
+  return `<label for="${id}" class="eyebrow" style="position:absolute;left:-9999px">Active project</label>
+   <select id="${id}" data-active-project>${S.projects.map((p) => `<option value="${p.id}" ${p.id === S.settings.active_project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>`;
+}
+
+function heroContent() {
+  const l = S.live || { state: "loading", message: "Starting..." };
+  const k = `<kbd>${esc(keyName())}</kbd>`;
+  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Tap ${k} to finish.` : `Release ${k} to paste.`}</p>`;
+  if (l.state === "working") return `<h2>Transcribing...</h2><p class="sub">Your text will appear where your cursor is.</p>`;
+  if (l.state === "model" || l.state === "loading") return `<h2>${esc(l.message || "Starting...")}</h2><p class="sub">This happens once. The first download can take a few minutes.</p>`;
+  if (l.state === "error") return `<h2>Hushtype needs attention</h2><p class="sub">${esc(l.message)}</p><div><button class="btn solid" data-go="settings">Open Settings</button></div>`;
+  return `<h2>Hold ${k} and speak</h2><p class="sub" style="max-width:56ch">Release the key and your words are typed where your cursor is: LinkedIn, Gmail, Outlook, anywhere. Punctuation is added automatically.</p>`;
+}
+
+function viewHome() {
+  const p = activeProject(), st = S.stats || {}, last = S.last, l = S.live || {};
+  const orb = l.state === "recording" ? "rec" : (l.state === "working" || l.state === "model") ? "busy" : "";
+  const snippets = Object.keys(S.settings.snippets || {});
+  return `
+  <header class="top"><div><h1>Home</h1><p class="sub">Dictate anywhere on your PC. Everything stays on this laptop.</p></div>
+    <div class="row">${projectSelect()}${langToggle()}</div></header>
+
+  <section class="glass card hero" aria-live="polite">
+    <div class="orb ${orb}" id="orb"><div>${icon("mic", 30, "#0B1220")}</div></div>
+    <div style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:12px" id="hero">${heroContent()}</div>
+    <div class="row" style="flex-basis:100%;gap:8px">
+      <span class="chip"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span>
+      <span class="chip">${esc(S.options.languages[p.language])}</span>
+      <span class="chip">Model: ${esc(S.options.models[p.language][S.settings[p.language + "_model"]] || "")}</span>
+      ${st.avg_wait != null ? `<span class="chip">Avg. wait ${st.avg_wait.toFixed(1)} s</span>` : ""}
+    </div>
+  </section>
+
+  <section class="glass card" aria-labelledby="last-h">
+    <div class="row spread"><h2 id="last-h" class="eyebrow">Last dictation</h2>
+      ${last ? `<div class="row"><button class="btn" data-copy-last>${icon("copy", 16)}Copy</button><button class="btn ghost" data-go="history">Open history</button></div>` : ""}</div>
+    ${last ? `<p class="big-text ${last.language === "ur" ? "urdu" : ""}">${esc(last.text)}</p>
+      <div class="meta"><span>${dayLabel(last.created_at)} ${fmtTime(last.created_at)}</span><span class="mono">${fmtDur(last.duration)} recorded</span><span class="mono">${last.process_time.toFixed(1)} s to transcribe</span>${last.app ? `<span>Pasted into ${esc(last.app)}</span>` : ""}</div>`
+      : `<p class="sub">Nothing yet. Click into any text box, hold ${esc(keyName())} and say something.</p>`}
+  </section>
+
+  <section class="tiles" aria-label="Your numbers">
+    <div class="glass tile"><span>Dictations today</span><b>${st.today ?? 0}</b></div>
+    <div class="glass tile"><span>Words this week</span><b>${(st.week_words ?? 0).toLocaleString()}</b></div>
+    <div class="glass tile"><span>Time recorded this week</span><b>${Math.round((st.week_seconds ?? 0) / 60)} min</b></div>
+  </section>
+
+  <section class="glass card" aria-labelledby="how-h">
+    <h2 id="how-h">How to use Hushtype</h2>
+    <div class="howto">
+      <div class="how"><div class="k"><kbd>Hold ${esc(keyName())}</kbd></div><p><b>Dictate.</b> Speak while holding, release to paste where your cursor is.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd></div><p><b>Hands-free.</b> Double-tap to keep recording without holding. Tap once more to finish.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project between English and Urdu.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(keyName())}</kbd> + <kbd>V</kbd></div><p><b>Paste again.</b> Re-pastes your last dictation, for when it landed in the wrong box.</p></div>
+      <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
+      <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
+      <div class="how"><div class="k"><span class="chip">Projects</span></div><p><b>Stay organised.</b> Dictations go to the active project, or to the project whose app rule matches (Outlook goes to Email).</p></div>
+      <div class="how"><div class="k"><span class="chip">Tray icon</span></div><p><b>Always running.</b> Closing this window keeps Hushtype in the tray. Right-click the icon to quit.</p></div>
+    </div>
+  </section>`;
+}
+
+function historyFilters(showProject) {
+  return `<div class="row">
+    <label for="hq" style="position:absolute;left:-9999px">Search</label>
+    <input id="hq" type="search" placeholder="Search your dictations" value="${esc(S.hq)}" style="flex:1 1 260px;min-width:0;border-radius:999px">
+    ${showProject ? `<label for="hproj" style="position:absolute;left:-9999px">Project</label><select id="hproj"><option value="">All projects</option>${S.projects.map((p) => `<option value="${p.id}" ${String(p.id) === String(S.hproj) ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>` : ""}
+    <div class="seg" role="group" aria-label="Language filter">
+      ${[["", "All"], ["en", "English"], ["ur", "Urdu"]].map(([k, l]) => `<button type="button" data-hlang="${k}" aria-pressed="${S.hlang === k}">${l}</button>`).join("")}
+    </div></div>`;
+}
+
+function viewHistory() {
+  return `<header class="top"><div><h1>History</h1><p class="sub">${S.settings.save_history ? "Saved on this laptop only." : "History is turned off in Settings."} ${S.stats.total ?? 0} dictations.</p></div>
+    <button class="btn danger" data-clear-all ${S.stats.total ? "" : "disabled"}>Delete all</button></header>
+    ${historyFilters(true)}
+    <div id="hist"><p class="sub">Loading...</p></div>`;
+}
+
+function itemHtml(d) {
+  const p = projectById(d.project_id);
+  return `<article class="item">
+    <div class="when"><span class="mono">${fmtTime(d.created_at)}</span><span class="tag ${d.language}">${d.language.toUpperCase()}</span></div>
+    <div class="body"><p class="text ${d.language === "ur" ? "urdu" : ""}">${esc(d.text)}</p>
+      <div class="meta"><span><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span><span class="mono">${fmtDur(d.duration)} recorded</span><span class="mono">${d.process_time.toFixed(1)} s wait</span>${d.app ? `<span>${esc(d.app)}</span>` : ""}</div></div>
+    <div class="actions">
+      <label for="mv${d.id}" style="position:absolute;left:-9999px">Move to project</label>
+      <select id="mv${d.id}" data-move="${d.id}" title="Move to project">${S.projects.map((x) => `<option value="${x.id}" ${x.id === d.project_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+      <button class="icon-btn" aria-label="Copy" title="Copy" data-copy="${d.id}">${icon("copy", 16)}</button>
+      <button class="icon-btn" aria-label="Delete" title="Delete" data-del="${d.id}">${icon("trash", 16)}</button>
+    </div></article>`;
+}
+
+function renderHistoryList(el) {
+  if (!S.history.length) { el.innerHTML = `<div class="glass list"><p class="empty">${S.hq || S.hlang ? "No dictations match." : "No dictations here yet."}</p></div>`; return; }
+  let html = "", day = null, open = false;
+  for (const d of S.history) {
+    const dl = dayLabel(d.created_at);
+    if (dl !== day) { if (open) html += "</div>"; html += `<p class="eyebrow" style="margin-top:6px">${esc(dl)}</p><div class="glass list">`; day = dl; open = true; }
+    html += itemHtml(d);
+  }
+  el.innerHTML = html + (open ? "</div>" : "");
+}
+
+async function loadHistory() {
+  const inProject = S.view === "project";
+  const params = { query: S.hq, language: S.hlang, project_id: inProject ? S.project : (S.hproj ? Number(S.hproj) : null),
+    oldest_first: inProject && S.ptab === "combined" };
+  S.history = await api().history(params);
+  const el = $("#hist"); if (!el) return;
+  if (inProject && S.ptab === "combined") {
+    const text = S.history.map((d) => d.text).join("\n\n");
+    const ur = S.history.length && S.history.every((d) => d.language === "ur");
+    el.innerHTML = S.history.length ? `<pre class="glass combined ${ur ? "urdu" : ""}" style="font-family:${ur ? "var(--urdu)" : "var(--font)"}">${esc(text)}</pre>` : `<div class="glass list"><p class="empty">No dictations in this project yet.</p></div>`;
+  } else renderHistoryList(el);
+}
+
+function viewProjects() {
+  return `<header class="top"><div><h1>Projects</h1><p class="sub">Group dictations by what they are for. New dictations go to the active project.</p></div>
+    <button class="btn solid" data-new-project>New project</button></header>
+    <div class="pgrid">${S.projects.map((p) => `
+      <div class="glass pcard" role="button" tabindex="0" data-open-project="${p.id}">
+        <h3><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal};width:12px;height:12px"></span>${esc(p.name)}</h3>
+        <div class="row" style="gap:6px">
+          ${p.id === S.settings.active_project ? '<span class="chip" style="background:rgba(45,212,191,.25)">Active</span>' : ""}
+          <span class="tag ${p.language}">${p.language.toUpperCase()}</span>
+          <span class="chip">${p.count} dictation${p.count === 1 ? "" : "s"}</span></div>
+        <p class="sub" style="font-size:13px">${p.rules.length ? "Auto: " + p.rules.map(esc).join(", ") : (p.id === 1 ? "Default place for new dictations" : "No app rules")}</p>
+      </div>`).join("")}
+      <button type="button" class="glass pcard new" data-new-project>+ New project</button>
+    </div>`;
+}
+
+function viewProject() {
+  const p = projectById(S.project);
+  return `<header class="top"><div class="row" style="gap:14px">
+      <button class="icon-btn" aria-label="Back to projects" data-go="projects">${icon("back", 18)}</button>
+      <div><h1 style="display:flex;align-items:center;gap:12px"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal};width:14px;height:14px"></span>${esc(p.name)}</h1>
+      <p class="sub">${esc(S.options.languages[p.language])} · ${p.remove_fillers ? "fillers removed" : "fillers kept"} · ${p.capitalize ? "auto capitals" : "no auto capitals"}${p.rules.length ? " · auto: " + p.rules.map(esc).join(", ") : ""}</p></div></div>
+    <div class="row">
+      ${p.id === S.settings.active_project ? '<span class="chip" style="background:rgba(45,212,191,.25)">Active project</span>' : `<button class="btn solid" data-activate="${p.id}">Make active</button>`}
+      <button class="btn" data-edit-project="${p.id}">${icon("edit", 16)}Edit</button></div></header>
+    <div class="row spread">
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" data-ptab="list" aria-pressed="${S.ptab === "list"}">Dictations</button>
+        <button type="button" data-ptab="combined" aria-pressed="${S.ptab === "combined"}">Combined</button></div>
+      ${S.ptab === "combined" ? `<button class="btn solid" data-copy-combined>${icon("copy", 16)}Copy all</button>` : ""}
+    </div>
+    <div id="hist"><p class="sub">Loading...</p></div>`;
+}
+
+function sw(key, label, desc) {
+  return `<div class="setting"><div class="label"><b id="l-${key}">${label}</b><span>${desc}</span></div>
+    <button type="button" class="switch" aria-labelledby="l-${key}" aria-pressed="${!!S.settings[key]}" data-toggle="${key}"></button></div>`;
+}
+function sel(key, label, desc, options, extra = "") {
+  return `<div class="setting"><div class="label"><label for="s-${key}"><b>${label}</b></label><span>${desc}</span></div>
+    <div class="row">${`<select id="s-${key}" data-set="${key}">${Object.entries(options).map(([v, t]) => `<option value="${esc(v)}" ${String(S.settings[key]) === String(v) ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>`}${extra}</div></div>`;
+}
+function modelRow(lang) {
+  const m = S.models[lang] || {}, name = S.settings[lang + "_model"], size = S.options.model_sizes[name] || "";
+  const status = m.loading ? "downloading or loading now..." : m.on_disk ? "installed" : "not downloaded yet";
+  const btn = !m.on_disk && !m.loading ? `<button class="btn solid" data-download="${lang}">Download</button>` : "";
+  return sel(lang + "_model", `${S.options.languages[lang]} model`, `${esc(name)} · ${size} · ${status}${m.error ? " · last error: " + esc(m.error) : ""}`, S.options.models[lang], btn);
+}
+
+function viewSettings() {
+  const s = S.settings;
+  const mics = { "": "Windows default microphone" };
+  for (const m of S.mics) mics[m.name] = m.name + (m.default ? " (Windows default)" : "");
+  if (s.mic && !(s.mic in mics)) mics[s.mic] = s.mic + " (not connected)";
+  const t = S.test;
+  return `<header class="top"><div><h1>Settings</h1><p class="sub">Changes are saved right away.</p></div></header>
+  <section class="glass card" aria-labelledby="h-mic"><h2 id="h-mic">Microphone</h2>
+    <div class="row"><label for="s-mic" style="position:absolute;left:-9999px">Microphone</label>
+      <select id="s-mic" data-set="mic" style="flex:1 1 300px;min-width:0">${Object.entries(mics).map(([v, l]) => `<option value="${esc(v)}" ${s.mic === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>
+      <button class="btn solid" data-test-mic ${t === "running" ? "disabled" : ""}>${t === "running" ? "Listening for 4 seconds..." : "Test microphone"}</button></div>
+    <div class="row" style="gap:14px"><span style="font-size:13px;color:var(--muted);width:76px">Input level</span><div class="meter" role="meter" aria-label="Input level"><i id="meter"></i></div></div>
+    ${t && t !== "running" ? `<p class="sub">${t.error ? "Problem: " + esc(t.error) : `Heard: <b>${esc(t.text || "(nothing)")}</b>`} ${t.peak != null ? `· peak ${Math.round(t.peak)} dB${t.peak < -40 ? " (too quiet: check the mic or its volume)" : ""}` : ""}</p>` : `<p class="sub">Speak normally: the bar should reach about the middle. Bluetooth headsets often sound worse than the laptop mic.</p>`}
+  </section>
+
+  <section class="glass card" aria-labelledby="h-keys" style="gap:0"><h2 id="h-keys" style="margin-bottom:8px">Shortcut and language</h2>
+    ${sel("hotkey", "Dictation key", "Hold to record, release to paste", S.options.hotkeys)}
+    ${sw("hands_free", "Hands-free double-tap", `Double-tap ${esc(keyName())} to record without holding`)}
+    ${sw("language_switch_key", `${esc(keyName())} + L and ${esc(keyName())} + V`, "Switch language, and paste the last dictation again")}
+    ${modelRow("en")}
+    ${modelRow("ur")}
+  </section>
+
+  <section class="glass card" aria-labelledby="h-text" style="gap:0"><h2 id="h-text" style="margin-bottom:8px">Text</h2>
+    ${sw("spoken_commands", "Line break commands", 'Say "new line" or "new paragraph". Punctuation is always automatic.')}
+    ${sw("trailing_space", "Add a space after text", "So you can keep dictating in the same box")}
+    <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>My words</b><span>Names and terms Hushtype should spell correctly</span></div>
+      <div class="row">${(s.vocabulary || []).map((w, i) => `<span class="wordchip">${esc(w)}<button type="button" aria-label="Remove ${esc(w)}" data-rm-word="${i}">×</button></span>`).join("")}
+        <label for="add-word" style="position:absolute;left:-9999px">Add a word</label><input id="add-word" type="text" placeholder="Add a word, press Enter" style="border-radius:999px;border-style:dashed;min-height:36px;width:230px"></div></div>
+    <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>Snippets</b><span>Say the trigger on its own and Hushtype pastes the text exactly as written</span></div>
+      ${Object.entries(s.snippets || {}).map(([k, v], i) => `<div class="snip"><input type="text" value="${esc(k)}" aria-label="Trigger" data-snip-key="${i}"><textarea aria-label="Text to insert" data-snip-val="${i}" rows="2">${esc(v)}</textarea><button class="icon-btn" aria-label="Remove snippet" data-rm-snip="${i}">${icon("trash", 16)}</button></div>`).join("")}
+      <div><button class="btn" data-add-snip>Add snippet</button></div></div>
+  </section>
+
+  <section class="glass card" aria-labelledby="h-app" style="gap:0"><h2 id="h-app" style="margin-bottom:8px">App and history</h2>
+    ${sw("start_with_windows", "Start with Windows", "Runs quietly in the tray after you sign in")}
+    ${sw("show_pill", "Show recording pill", "Small timer at the bottom of the screen while you talk")}
+    ${sw("beep", "Sound effects", "Short beep when recording starts and stops")}
+    ${sw("save_history", "Save history", "Kept on this laptop only")}
+    ${sel("review_days", "Ask me to clean up history", "Hushtype asks before deleting anything", S.options.review_intervals)}
+    <div class="setting"><div class="label"><b>Your data</b><span>${esc(S.dataDir || "")}</span></div><button class="btn" data-open-folder>Open folder</button></div>
+  </section>
+  <p class="sub" style="font-size:12px">Hushtype ${esc(S.versionStr || "")} · MIT licence · Speech never leaves this computer.</p>`;
+}
+
+/* ---------------- dialogs ---------------- */
+function dialog(html) {
+  $("#layer").innerHTML = `<div class="backdrop" data-close-backdrop><div class="dialog" role="dialog" aria-modal="true">${html}</div></div>`;
+  const first = $("#layer").querySelector("input, select, button"); first && first.focus();
+}
+const closeDialog = () => { $("#layer").innerHTML = ""; };
+
+function confirmDialog(title, body, okLabel, onOk, danger = true) {
+  dialog(`<h2>${esc(title)}</h2><p class="sub">${esc(body)}</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Cancel</button><button class="btn ${danger ? "danger" : "solid"}" id="ok">${esc(okLabel)}</button></div>`);
+  $("#ok").onclick = async () => { closeDialog(); await onOk(); };
+}
+
+function projectDialog(p) {
+  const isNew = !p; p = p || { name: "", language: activeProject().language, remove_fillers: true, capitalize: true, rules: [] };
+  dialog(`<h2>${isNew ? "New project" : "Edit project"}</h2>
+    <div class="field"><label for="pn">Name</label><input id="pn" type="text" value="${esc(p.name)}" placeholder="e.g. Email, Work, Poetry" ${p.id === 1 ? "" : ""}></div>
+    <div class="field"><label for="pl">Language</label><select id="pl"><option value="en" ${p.language === "en" ? "selected" : ""}>English</option><option value="ur" ${p.language === "ur" ? "selected" : ""}>Urdu</option></select></div>
+    <div class="setting"><div class="label"><b id="l-pf">Remove filler words</b><span>"um", "uh" (English only)</span></div><button type="button" class="switch" aria-labelledby="l-pf" id="pf" aria-pressed="${p.remove_fillers}"></button></div>
+    <div class="setting"><div class="label"><b id="l-pc">Capitalise sentences</b><span>Turn off for poetry or casual chat</span></div><button type="button" class="switch" aria-labelledby="l-pc" id="pc" aria-pressed="${p.capitalize}"></button></div>
+    <div class="field"><label for="pr">Auto-file from these apps (optional)</label><input id="pr" type="text" value="${esc(p.rules.join(", "))}" placeholder="e.g. outlook, gmail"><span class="sub" style="font-size:12.5px">When you dictate in a window whose app or title contains one of these words, it goes to this project.</span></div>
+    <div class="row spread">${!isNew && p.id !== 1 ? `<button class="btn danger" id="pdel">Delete project</button>` : "<span></span>"}
+      <div class="row"><button class="btn" data-close>Cancel</button><button class="btn solid" id="psave">${isNew ? "Create" : "Save"}</button></div></div>`);
+  for (const id of ["pf", "pc"]) $("#" + id).onclick = (e) => e.currentTarget.setAttribute("aria-pressed", e.currentTarget.getAttribute("aria-pressed") !== "true");
+  $("#psave").onclick = async () => {
+    const data = { name: $("#pn").value.trim() || "Untitled", language: $("#pl").value,
+      remove_fillers: $("#pf").getAttribute("aria-pressed") === "true", capitalize: $("#pc").getAttribute("aria-pressed") === "true",
+      rules: $("#pr").value.split(",").map((s) => s.trim()).filter(Boolean) };
+    const saved = isNew ? await api().create_project(data) : await api().update_project(p.id, data);
+    closeDialog(); await refreshData(); toast(isNew ? "Project created" : "Project saved");
+    if (isNew) go("project", { project: saved.id, ptab: "list" }); else render();
+  };
+  const del = $("#pdel");
+  if (del) del.onclick = () => confirmDialog(`Delete "${p.name}"?`, "Its dictations move to the Inbox. Nothing is lost.", "Delete project", async () => {
+    await api().delete_project(p.id); await refreshData(); toast("Project deleted"); go("projects"); });
+}
+
+window.hushtype = {
+  askCleanup(n) {
+    dialog(`<div style="width:48px;height:48px;border-radius:16px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center">${icon("history", 22)}</div>
+      <h2>Clean up your history?</h2><p class="sub">You have ${n} dictation${n === 1 ? "" : "s"} older than ${S.settings.review_days} days. Delete ${n === 1 ? "it" : "them"} to keep only recent ones on your laptop.</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn" id="keep">Keep for now</button><button class="btn solid" id="cdel">Delete ${n} dictation${n === 1 ? "" : "s"}</button></div>
+      <button class="btn ghost" style="align-self:flex-start;padding:0" id="review">Review them first</button>`);
+    $("#keep").onclick = async () => { await api().cleanup(false); closeDialog(); toast("Kept. Hushtype will ask again later."); };
+    $("#cdel").onclick = async () => { const d = await api().cleanup(true); closeDialog(); await refreshData(); toast(`Deleted ${d} old dictation${d === 1 ? "" : "s"}`); render(); };
+    $("#review").onclick = () => { closeDialog(); go("history"); };
+  },
+};
+
+/* ---------------- events ---------------- */
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  if (!t) return;
+  const d = t.dataset;
+  if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
+  if ("close" in d) return closeDialog();
+  if (d.go) return go(d.go);
+  if (d.lang) { await api().set_language(d.lang); await refreshData(); render(); toast(`${activeProject().name}: ${S.options.languages[d.lang]}`); return; }
+  if ("copyLast" in d) { await api().copy(S.last.text); return toast("Copied"); }
+  if (d.copy) { const it = S.history.find((x) => x.id === Number(d.copy)); await api().copy(it.text); return toast("Copied"); }
+  if (d.del) { await api().delete_item(Number(d.del)); await refreshData(); loadHistory(); return toast("Deleted"); }
+  if ("clearAll" in d) return confirmDialog("Delete all history?", "This removes every saved dictation from this laptop. It cannot be undone.", "Delete all", async () => { const n = await api().clear_history(); await refreshData(); render(); toast(`Deleted ${n} dictations`); });
+  if ("hlang" in d) { S.hlang = d.hlang; render(); return; }
+  if ("newProject" in d) return projectDialog(null);
+  if (d.openProject) return go("project", { project: Number(d.openProject), ptab: "list", hq: "", hlang: "" });
+  if (d.editProject) return projectDialog(projectById(Number(d.editProject)));
+  if (d.activate) { await api().set_active_project(Number(d.activate)); await refreshData(); render(); return toast("Active project changed"); }
+  if (d.ptab) { S.ptab = d.ptab; render(); return; }
+  if ("copyCombined" in d) { await api().copy(S.history.map((x) => x.text).join("\n\n")); return toast("Copied the whole project"); }
+  if (d.toggle) { const v = t.getAttribute("aria-pressed") !== "true"; t.setAttribute("aria-pressed", v); S.settings = await api().set_settings({ [d.toggle]: v }); return; }
+  if (d.download) { await api().download_model(d.download); toast("Download started. You can keep working."); setTimeout(refreshModels, 500); return; }
+  if ("testMic" in d) { S.test = "running"; render(); const r = await api().test_mic(4); S.test = r; if (S.view === "settings") render(); return; }
+  if (d.rmWord) { const v = [...S.settings.vocabulary]; v.splice(Number(d.rmWord), 1); S.settings = await api().set_settings({ vocabulary: v }); render(); return; }
+  if ("addSnip" in d) { const sn = { ...S.settings.snippets }; let k = "new snippet", i = 2; while (k in sn) k = `new snippet ${i++}`; sn[k] = ""; S.settings = await api().set_settings({ snippets: sn }); render(); return; }
+  if (d.rmSnip) { const e2 = Object.entries(S.settings.snippets); e2.splice(Number(d.rmSnip), 1); S.settings = await api().set_settings({ snippets: Object.fromEntries(e2) }); render(); return; }
+  if ("openFolder" in d) return api().open_data_folder();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("#layer").innerHTML) closeDialog();
+  const card = e.target.closest && e.target.closest("[data-open-project]");
+  if (card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); card.click(); }
+  if (e.target.id === "add-word" && e.key === "Enter" && e.target.value.trim()) {
+    const v = [...S.settings.vocabulary, e.target.value.trim()];
+    api().set_settings({ vocabulary: v }).then((s) => { S.settings = s; render(); setTimeout(() => $("#add-word") && $("#add-word").focus(), 0); });
+  }
+});
+document.addEventListener("change", async (e) => {
+  const t = e.target;
+  if (t.matches("[data-active-project]")) { await api().set_active_project(Number(t.value)); await refreshData(); render(); return toast(`Active project: ${activeProject().name}`); }
+  if (t.dataset.set) {
+    let v = t.value; if (t.dataset.set === "review_days") v = Number(v);
+    S.settings = await api().set_settings({ [t.dataset.set]: v });
+    if (t.dataset.set.endsWith("_model")) await refreshModels();
+    render(); return toast("Saved");
+  }
+  if (t.dataset.move) { await api().move_item(Number(t.dataset.move), Number(t.value)); await refreshData(); loadHistory(); return toast(`Moved to ${projectById(Number(t.value)).name}`); }
+  if (t.id === "hproj") { S.hproj = t.value; loadHistory(); }
+  if (t.dataset.snipKey !== undefined || t.dataset.snipVal !== undefined) {
+    const keys = [...document.querySelectorAll("[data-snip-key]")].map((x) => x.value.trim().toLowerCase());
+    const vals = [...document.querySelectorAll("[data-snip-val]")].map((x) => x.value);
+    const sn = {}; keys.forEach((k, i) => { if (k) sn[k] = vals[i]; });
+    S.settings = await api().set_settings({ snippets: sn }); toast("Snippet saved");
+  }
+});
+let searchTimer;
+document.addEventListener("input", (e) => {
+  if (e.target.id === "hq") { S.hq = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(loadHistory, 200); }
+});
+
+/* ---------------- data & live updates ---------------- */
+async function refreshData() {
+  const r = await api().stats();
+  S.stats = r.stats; S.last = r.last; S.projects = r.projects; S.settings = r.settings;
+}
+async function refreshModels() { S.models = await api().models(); if (S.view === "settings") render(); }
+
+let meterTimer = null;
+function startMeter() {
+  if (meterTimer) return;
+  api().mics().then((m) => { const had = S.mics.length; S.mics = m; if (!had && m.length && S.view === "settings") render(); });
+  meterTimer = setInterval(async () => { const el = $("#meter"); if (!el) return; const lvl = await api().mic_level(); el.style.width = Math.round(lvl * 100) + "%"; }, 120);
+}
+function stopMeter() { clearInterval(meterTimer); meterTimer = null; }
+
+async function poll() {
+  try {
+    const prev = S.live ? S.live.state : null;
+    S.live = await api().live();
+    renderSideStatus();
+    if (S.view === "home") {
+      if (prev !== S.live.state) {
+        const hero = $("#hero"), orb = $("#orb");
+        if (hero) hero.innerHTML = heroContent();
+        if (orb) orb.className = "orb " + (S.live.state === "recording" ? "rec" : (S.live.state === "working" || S.live.state === "model") ? "busy" : "");
+      } else if (S.live.state === "recording") { const tm = $("#hero-timer"); if (tm) tm.textContent = fmtDur(S.live.elapsed); }
+    }
+    if (S.live.version !== S.version) {
+      S.version = S.live.version; await refreshData();
+      if (S.view === "home" || S.view === "projects") render();
+      else if (S.view === "history" || S.view === "project") loadHistory();
+    }
+    if (prev && prev !== S.live.state && (prev === "model" || S.live.state === "model")) refreshModels();
+  } catch (err) { console.error(err); }
+  setTimeout(poll, S.live && S.live.state === "recording" ? 200 : 400);
+}
+
+async function boot() {
+  const b = await api().bootstrap();
+  Object.assign(S, { settings: b.settings, options: b.options, projects: b.projects, stats: b.stats, last: b.last, models: b.models, dataDir: b.data_dir, versionStr: b.version });
+  renderNav(); render(); poll();
+  const n = await api().cleanup_due(); if (n) window.hushtype.askCleanup(n);
+}
+if (window.pywebview && window.pywebview.api && window.pywebview.api.bootstrap) boot();
+else window.addEventListener("pywebviewready", boot);
+</script>
+</body>
+</html>
