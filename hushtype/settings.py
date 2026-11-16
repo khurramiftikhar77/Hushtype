@@ -104,6 +104,10 @@ DEFAULTS: dict = {
     "replacements": {"linked in": "LinkedIn"},
     # Say the trigger, get the text. Edited on the Settings screen.
     "snippets": {"my signature": "Best regards,\nKhurram"},
+    "learn_from_edits": True,  # fixes made in History are applied to future dictations
+    "learn_names": True,  # names used in 3 dictations are added to the words Whisper should know
+    "learned_replacements": {},  # {"sara": "Sarah"}
+    "learned_words": [],
 }
 
 

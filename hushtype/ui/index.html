@@ -534,11 +534,12 @@ function itemHtml(d) {
   const p = projectById(d.project_id);
   return `<article class="item">
     <div class="when"><span class="mono">${fmtTime(d.created_at)}</span><span class="tag ${d.language}">${d.language.toUpperCase()}</span></div>
-    <div class="body"><p class="text ${RTL(d.language) ? "urdu" : ""}">${esc(d.text)}</p>
+    <div class="body" id="body-${d.id}"><p class="text ${RTL(d.language) ? "urdu" : ""}">${esc(d.text)}</p>
       <div class="meta"><span><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span><span class="mono">${fmtDur(d.duration)} recorded</span><span class="mono">${d.process_time.toFixed(1)} s wait</span>${d.app ? `<span>${esc(d.app)}</span>` : ""}</div></div>
     <div class="actions">
       <label for="mv${d.id}" style="position:absolute;left:-9999px">Move to project</label>
       <select id="mv${d.id}" data-move="${d.id}" title="Move to project">${S.projects.map((x) => `<option value="${x.id}" ${x.id === d.project_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+      <button class="icon-btn" aria-label="Edit and teach Hushtype" title="Fix mistakes: Hushtype learns from them" data-edit="${d.id}">${icon("edit", 16)}</button>
       <button class="icon-btn" aria-label="Copy" title="Copy" data-copy="${d.id}">${icon("copy", 16)}</button>
       <button class="icon-btn" aria-label="Delete" title="Delete" data-del="${d.id}">${icon("trash", 16)}</button>
     </div></article>`;
@@ -697,6 +698,11 @@ function viewSettings() {
     <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>Snippets</b><span>Say the trigger on its own and Hushtype pastes the text exactly as written</span></div>
       ${Object.entries(s.snippets || {}).map(([k, v], i) => `<div class="snip"><input type="text" value="${esc(k)}" aria-label="Trigger" data-snip-key="${i}"><textarea aria-label="Text to insert" data-snip-val="${i}" rows="2">${esc(v)}</textarea><button class="icon-btn" aria-label="Remove snippet" data-rm-snip="${i}">${icon("trash", 16)}</button></div>`).join("")}
       <div><button class="btn" data-add-snip>Add snippet</button></div></div>
+    ${sw("learn_from_edits", "Learn from my corrections", "When you fix a word in History, Hushtype spells it that way from then on")}
+    ${sw("learn_names", "Learn names I use often", "Names that appear in 3 dictations are added to the words Hushtype knows")}
+    <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>Learned from you</b><span>${Object.keys(s.learned_replacements || {}).length + (s.learned_words || []).length ? "Remove anything that was learned wrongly" : "Nothing yet. Edit a dictation in History to teach Hushtype."}</span></div>
+      <div class="row">${Object.entries(s.learned_replacements || {}).map(([w, r]) => `<span class="wordchip"><span class="${RTL(/[\u0600-\u06FF]/.test(r) ? "ur" : "en") ? "urdu" : ""}">${esc(w)} → ${esc(r)}</span><button type="button" aria-label="Forget ${esc(w)}" data-forget="fix:${esc(w)}">×</button></span>`).join("")}
+        ${(s.learned_words || []).map((w) => `<span class="wordchip">${esc(w)}<button type="button" aria-label="Forget ${esc(w)}" data-forget="word:${esc(w)}">×</button></span>`).join("")}</div></div>
   </section>
 
   <section class="glass card" aria-labelledby="h-app" style="gap:0"><h2 id="h-app" style="margin-bottom:8px">App and history</h2>
@@ -786,7 +792,7 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
@@ -794,6 +800,24 @@ document.addEventListener("click", async (e) => {
   if (d.go) return go(d.go);
   if (d.lang) { await api().set_language(d.lang); await refreshData(); render(); toast(`${activeProject().name}: ${S.options.languages[d.lang]}`); return; }
   if ("copyLast" in d) { await api().copy(S.last.text); return toast("Copied"); }
+  if (d.edit) {
+    const it = S.history.find((x) => x.id === Number(d.edit)); const body = $("#body-" + it.id); if (!body) return;
+    const p = body.querySelector(".text");
+    p.outerHTML = `<div class="field" style="gap:8px"><label for="ed-${it.id}" style="position:absolute;left:-9999px">Corrected text</label>
+      <textarea id="ed-${it.id}" rows="3" dir="${RTL(it.language) ? "rtl" : "ltr"}" class="${RTL(it.language) ? "urdu" : ""}" style="width:100%">${esc(it.text)}</textarea>
+      <div class="row"><button class="btn solid" data-save-edit="${it.id}">Save and copy</button><button class="btn ghost" data-cancel-edit>Cancel</button>
+      <span class="sub" style="font-size:12.5px">Fix wrong words: Hushtype learns them for next time.</span></div></div>`;
+    const ta = $("#ed-" + it.id); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+    return;
+  }
+  if (d.saveEdit) {
+    const ta = $("#ed-" + d.saveEdit);
+    const r = await api().edit_item(Number(d.saveEdit), ta.value);
+    await refreshData(); loadHistory();
+    return toast(r.learned.length ? `Saved and copied. Learned: ${r.learned.map((x) => `${x.wrong} → ${x.right}`).join(", ")}` : "Saved and copied");
+  }
+  if ("cancelEdit" in d) { loadHistory(); return; }
+  if (d.forget) { const [kind, key] = d.forget.split(":", 2); S.settings = await api().forget_learned(kind, key); render(); return toast("Forgotten"); }
   if (d.copy) { const it = S.history.find((x) => x.id === Number(d.copy)); await api().copy(it.text); return toast("Copied"); }
   if (d.del) { await api().delete_item(Number(d.del)); await refreshData(); loadHistory(); return toast("Deleted"); }
   if ("clearAll" in d) return confirmDialog("Delete all history?", "This removes every saved dictation from this laptop. It cannot be undone.", "Delete all", async () => { const n = await api().clear_history(); await refreshData(); render(); toast(`Deleted ${n} dictations`); });

@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS dictations (
     raw_text TEXT NOT NULL,                   -- model output before cleanup
     app TEXT                                  -- where it was pasted
 );
+CREATE TABLE IF NOT EXISTS words (
+    word TEXT PRIMARY KEY,                    -- names seen in dictations, for auto-learning
+    count INTEGER NOT NULL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS idx_dict_created ON dictations(created_at);
 CREATE INDEX IF NOT EXISTS idx_dict_project ON dictations(project_id);
 """
@@ -203,6 +207,29 @@ class Store:
     def last(self) -> dict | None:
         rows = self.dictations(limit=1)
         return rows[0] if rows else None
+
+    def get(self, item_id: int) -> dict | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM dictations WHERE id = ?", (item_id,)).fetchone()
+        return dict(row) if row else None
+
+    def update_text(self, item_id: int, text: str) -> None:
+        with self._lock:
+            self._db.execute("UPDATE dictations SET text = ? WHERE id = ?", (text, item_id))
+            self._changed()
+
+    def bump_words(self, words: list[str], threshold: int = 3) -> list[str]:
+        """Counts names; returns the ones that just reached the threshold."""
+        reached = []
+        with self._lock:
+            for w in words:
+                self._db.execute("INSERT INTO words (word, count) VALUES (?, 1) "
+                                 "ON CONFLICT(word) DO UPDATE SET count = count + 1", (w,))
+                n = self._db.execute("SELECT count FROM words WHERE word = ?", (w,)).fetchone()[0]
+                if n == threshold:
+                    reached.append(w)
+            self._db.commit()
+        return reached
 
     def move(self, item_id: int, project_id: int) -> None:
         with self._lock:

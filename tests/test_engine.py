@@ -39,7 +39,7 @@ class FakeModel:
     def detect(self, audio):
         return dict(FakeModel.detected)
 
-    def transcribe(self, audio, language):
+    def transcribe(self, audio, language, vocabulary=None):
         return {"en": "um, thanks for sharing this, new paragraph. Khurram",
                 "ur": "السلام علیکم", "pa": "کی حال اے", "ar": "مرحبا"}[language]
 
@@ -271,6 +271,36 @@ def test_auto_detects_urdu_and_english(env):
     FakeModel.detected = {"ur": 0.6, "hi": 0.3, "en": 0.1}
 
 
+def test_learns_from_history_edit_and_applies_it(env):
+    eng, settings, store, pasted, *_ = env
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    item = store.last()
+    fixes = eng.learn_from_edit(item["text"], item["text"].replace("Khurram", "Khurram Iftikhar").replace("Thanks", "Thanks"))
+    assert fixes == []  # adding words is not a correction
+    fixes = eng.learn_from_edit("Thanks for sharing this, Khuram", "Thanks for sharing this, Khurram")
+    assert fixes == [("khuram", "Khurram")]
+    assert settings["learned_replacements"] == {"khuram": "Khurram"}
+    model = eng.get_model("en")
+    model.transcribe = lambda audio, language, vocabulary=None: "Thanks, Khuram"
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert store.last()["text"] == "Thanks, Khurram"
+
+
+def test_learns_names_after_three_uses(env):
+    eng, settings, store, *_ = env
+    model = eng.get_model("en")
+    seen = []
+    def fake(audio, language, vocabulary=None):
+        seen.append(list(vocabulary or []))
+        return "Great to meet Zainab at the event."
+    model.transcribe = fake
+    for _ in range(3):
+        eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert "Zainab" in settings["learned_words"]
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert "Zainab" in seen[-1]  # now passed to Whisper as a known word
+
+
 def test_copy_only_is_the_default(tmp_path):
     assert Settings(tmp_path / "fresh.json")["auto_paste"] is False
 
@@ -310,7 +340,7 @@ def test_punjabi_uses_urdu_model_and_cycles(env):
 def test_punjabi_dictation_saved_as_punjabi(env):
     eng, settings, store, pasted, *_ = env
     model = eng.get_model("pa")
-    model.transcribe = lambda audio, language: {"en": "hello", "ur": "اردو", "pa": "کی حال اے"}[language]
+    model.transcribe = lambda audio, language, vocabulary=None: {"en": "hello", "ur": "اردو", "pa": "کی حال اے"}[language]
     store.update_project(1, language="pa")
     eng.begin_recording(); eng.finish_recording(); run(eng)
     assert pasted[-1] == "کی حال اے "

@@ -217,6 +217,27 @@ class Api:
         self._db.delete(int(item_id))
         return True
 
+    def edit_item(self, item_id: int, text: str) -> dict:
+        """Saves a corrected dictation, learns from the fix and copies the new text."""
+        item = self._db.get(int(item_id))
+        if not item:
+            return {"learned": []}
+        text = text.strip()
+        self._db.update_text(int(item_id), text)
+        fixes = self._e.learn_from_edit(item["text"], text)
+        self.copy(text)
+        self._e.last_text = text
+        return {"learned": [{"wrong": w, "right": r} for w, r in fixes]}
+
+    def forget_learned(self, kind: str, key: str) -> dict:
+        if kind == "word":
+            self._s.update({"learned_words": [w for w in self._s["learned_words"] if w != key]})
+        else:
+            learned = dict(self._s["learned_replacements"])
+            learned.pop(key, None)
+            self._s.update({"learned_replacements": learned})
+        return self._s.all()
+
     def move_item(self, item_id: int, project_id: int) -> bool:
         self._db.move(int(item_id), int(project_id))
         return True

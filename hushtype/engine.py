@@ -475,11 +475,13 @@ class Engine:
                 self.live_state.language = language  # the pill and theme follow the detected language
         model = self.get_model(language)
         self._set("working", "Transcribing")
-        raw = model.transcribe(job.audio, language)
-        p = job.project
         s = self.settings
+        vocabulary = list(s["vocabulary"]) + list(s["learned_words"])
+        raw = model.transcribe(job.audio, language, vocabulary=vocabulary)
+        p = job.project
+        replacements = {**s["learned_replacements"], **s["replacements"]}  # your own rules win
         text = clean(raw, language=language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
-                     spoken_commands=s["spoken_commands"], replacements=s["replacements"],
+                     spoken_commands=s["spoken_commands"], replacements=replacements,
                      snippets=s["snippets"])
         took = time.perf_counter() - t0
         if not text:
@@ -506,10 +508,45 @@ class Engine:
             if self._copy:
                 self._copy(text)
             self.flash("pasted", f"Copied · {words} word{plural} · Ctrl+V to paste")
+        if s["learn_names"] and language == "en":
+            self._learn_names(text)
         if s["save_history"]:
             return self.store.add(project_id=p["id"], language=language, duration=round(job.duration, 2),
                                   process_time=round(took, 2), text=text.strip(), raw_text=raw, app=job.app)
         return None
+
+    # ---------- learning ----------
+
+    def _learn_names(self, text: str) -> None:
+        from hushtype.learning import candidate_names
+
+        known = {w.lower() for w in self.settings["vocabulary"] + self.settings["learned_words"]}
+        names = [n for n in candidate_names(text) if n.lower() not in known]
+        reached = self.store.bump_words(names) if names else []
+        if reached:
+            words = (self.settings["learned_words"] + reached)[-60:]
+            self.settings.update({"learned_words": words})
+            log.info("Learned names: %s", ", ".join(reached))
+
+    def learn_from_edit(self, old: str, new: str) -> list[tuple[str, str]]:
+        """Called when the user corrects a dictation in History."""
+        from hushtype.learning import extract_corrections
+
+        if not self.settings["learn_from_edits"]:
+            return []
+        fixes = extract_corrections(old, new)
+        if fixes:
+            learned = dict(self.settings["learned_replacements"])
+            for wrong, right in fixes:
+                learned[wrong] = right
+            self.settings.update({"learned_replacements": learned})
+            words = list(self.settings["learned_words"])
+            for _wrong, right in fixes:
+                if right[:1].isupper() and right not in words and right not in self.settings["vocabulary"]:
+                    words.append(right)
+            self.settings.update({"learned_words": words[-60:]})
+            log.info("Learned corrections: %s", fixes)
+        return fixes
 
     # ---------- history review ----------
 

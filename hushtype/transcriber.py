@@ -108,10 +108,11 @@ class Transcriber:
         self.vocabulary = vocabulary or []
         self._lock = threading.Lock()  # one transcription at a time per model
 
-    def _prompt(self, language: str) -> str:
+    def _prompt(self, language: str, vocabulary: list[str] | None = None) -> str:
         base = PROMPTS.get(language, "")
-        if language == "en" and self.vocabulary:
-            base += " " + ", ".join(self.vocabulary) + "."
+        words = list(dict.fromkeys((vocabulary if vocabulary is not None else self.vocabulary) or []))[-40:]
+        if words:
+            base += " " + ", ".join(words) + "."
         return base
 
     def detect(self, audio: np.ndarray) -> dict[str, float]:
@@ -124,14 +125,14 @@ class Transcriber:
                 return {}
         return dict(all_probs)
 
-    def transcribe(self, audio: np.ndarray, language: str = "en") -> str:
+    def transcribe(self, audio: np.ndarray, language: str = "en", vocabulary: list[str] | None = None) -> str:
         """audio: mono float32 at 16 kHz. language: 'en' or 'ur'."""
         t0 = time.perf_counter()
         with self._lock:
             kwargs = dict(language=WHISPER_LANGUAGE.get(language, language), beam_size=self.beam_size,
                           # One pass only: retries at higher temperatures cost many
                           # seconds on a laptop CPU and rarely help short dictation.
-                          temperature=0.0, initial_prompt=self._prompt(language))
+                          temperature=0.0, initial_prompt=self._prompt(language, vocabulary))
             if len(audio) <= LONG_AUDIO_SECONDS * 16000:
                 # Up to ~30 s: one window, the plain decoder is most accurate.
                 segments, _info = self.model.transcribe(audio, vad_filter=True,
