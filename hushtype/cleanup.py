@@ -77,9 +77,104 @@ def _capitalize_sentences(text: str) -> str:
     return re.sub(r"(^|[.!?]\s+|\n\s*)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
 
 
+# ---------- self-correction ----------
+
+_CORRECTION = re.compile(
+    r"[,.;]?\s*\b(?:no,?\s+wait|sorry,?\s+i\s+mean|no,?\s+i\s+mean|i\s+meant|or\s+rather)\b[,.;:]?\s*",
+    re.IGNORECASE)
+_SCRATCH = re.compile(r"\s*\bscratch\s+that\b[,.!]?\s*", re.IGNORECASE)
+_CLAUSE_END = re.compile(r"[,.!?;\n]")
+
+
+def apply_self_corrections(text: str) -> str:
+    """'Meet on Monday, no wait, Tuesday' -> 'Meet on Tuesday'. English only."""
+    # "scratch that" removes the sentence before it.
+    while (m := _SCRATCH.search(text)):
+        before = text[: m.start()]
+        cut = max(before.rfind(". ", 0, len(before) - 1), before.rfind("! ", 0, len(before) - 1),
+                  before.rfind("? ", 0, len(before) - 1), before.rfind("\n", 0, len(before) - 1))
+        keep = before[: cut + 2] if cut >= 0 else ""
+        text = keep + text[m.end():]
+    # "X, no wait, Y": Y replaces as many words before the marker as Y has.
+    for _ in range(5):
+        m = _CORRECTION.search(text)
+        if not m:
+            break
+        before, after = text[: m.start()], text[m.end():]
+        end = _CLAUSE_END.search(after)
+        fix = after[: end.start()] if end else after
+        rest = after[len(fix):]
+        fix_words = fix.split()
+        if not fix_words:
+            text = before + rest
+            continue
+        clause_start = max(before.rfind(c) for c in ",.!?;\n") + 1
+        head, clause = before[:clause_start], before[clause_start:]
+        words = clause.split()
+        n = min(len(fix_words), len(words))
+        kept = words[: len(words) - n]
+        lead = " " if head and not head.endswith((" ", "\n")) else ""
+        text = head + lead + " ".join(kept + fix_words) + rest
+    return text
+
+
+# ---------- smart formatting ----------
+
+_ORDINALS = [("first", "firstly"), ("second", "secondly"), ("third", "thirdly"), ("fourth", "fourthly"),
+             ("fifth", "fifthly"), ("sixth",), ("seventh",)]
+_ORDINAL_WORDS = {w: i for i, group in enumerate(_ORDINALS) for w in group}
+_LIST_ITEM = re.compile(r"(?:^|(?<=[.!?:]\s)|(?<=\n))(first(?:ly)?|second(?:ly)?|third(?:ly)?|fourth(?:ly)?|fifth(?:ly)?|"
+                        r"sixth|seventh|finally|lastly)\b[,:]?\s*", re.IGNORECASE)
+
+
+def format_lists(text: str) -> str:
+    """'First, ... Second, ... Finally, ...' -> a numbered list."""
+    marks = list(_LIST_ITEM.finditer(text))
+    words = [m.group(1).lower() for m in marks]
+    if "first" not in words and "firstly" not in words:
+        return text
+    if sum(w not in ("finally", "lastly") for w in words) < 2:
+        return text
+    start = next(i for i, w in enumerate(words) if w in ("first", "firstly"))
+    marks = marks[start:]
+    intro = text[: marks[0].start()].rstrip()
+    lines = [intro] if intro else []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        item = text[m.end():end].strip()
+        if item:
+            lines.append(f"{i + 1}. {item[0].upper()}{item[1:]}")
+    return "\n".join(lines)
+
+
+_GREETING = re.compile(r"^((?:hi|hello|hey|dear|good\s+(?:morning|afternoon|evening))\b[^,.!?\n]{0,40}[,!])\s*",
+                       re.IGNORECASE)
+_SIGNOFF = re.compile(r"[.!]?\s*\b((?i:best\s+regards|kind\s+regards|warm\s+regards|regards|many\s+thanks|"
+                      r"thanks\s+(?:a\s+lot|again)|thank\s+you|thanks|cheers|best|sincerely|yours\s+sincerely))"
+                      r"[,.!]?\s*([A-Z][\w'-]*(?:\s+[A-Z][\w'-]*)?)?[.!]?\s*$")
+
+
+def format_email(text: str) -> str:
+    """Greeting on its own line, sign-off and name at the bottom."""
+    g = _GREETING.match(text)
+    if g and len(text) > len(g.group(0)) + 10:
+        text = g.group(1) + "\n\n" + text[g.end():]
+    m = _SIGNOFF.search(text)
+    if m and m.start() > len(text) * 0.4:
+        body = text[: m.start()].rstrip()
+        closing = m.group(1)
+        closing = closing[0].upper() + closing[1:]
+        name = m.group(2)
+        if not body.endswith((".", "!", "?")):
+            body += "."
+        text = f"{body}\n\n{closing},\n{name}" if name else f"{body}\n\n{closing},"
+    return text
+
+
 def clean(text: str, *, language: str = "en", fillers: bool = True, capitalize: bool = True,
           spoken_commands: bool = True, replacements: dict[str, str] | None = None,
-          snippets: dict[str, str] | None = None) -> str:
+          snippets: dict[str, str] | None = None, self_correct: bool = True,
+          lists: bool = True, email: bool = False) -> str:
     text = text.strip()
     if not text:
         return ""
@@ -93,6 +188,8 @@ def clean(text: str, *, language: str = "en", fillers: bool = True, capitalize: 
         text = apply_spoken_commands(text)
     if fillers and english:
         text = remove_fillers(text)
+    if self_correct and english:
+        text = apply_self_corrections(text)
     if replacements:
         text = apply_replacements(text, replacements)
     text = _SPACE_AROUND_NL.sub("\n", text)
@@ -102,6 +199,10 @@ def clean(text: str, *, language: str = "en", fillers: bool = True, capitalize: 
     text = _COMMA_BEFORE_END.sub(r"\1", text)
     text = _MULTI_SPACE.sub(" ", text)
     text = _LEADING_PUNCT.sub("", text)
+    if lists and english:
+        text = format_lists(text)
+    if email and english:
+        text = format_email(text)
     if capitalize and english:
         text = _capitalize_sentences(text)
     return text.strip(" \t")

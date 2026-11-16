@@ -26,6 +26,26 @@ AUTO_ENGLISH_CONFIDENCE = 0.7
 FLASH_SECONDS = 1.6
 
 
+EMAIL_APPS = ("outlook", "gmail", "thunderbird", "mail", "proton", "yahoo mail")
+
+
+def is_email(app: str | None, project_name: str = "") -> bool:
+    """Email layout applies in email apps and in projects named like 'Email'."""
+    a = (app or "").lower()
+    return any(k in a for k in EMAIL_APPS) or "email" in (project_name or "").lower()
+
+
+def boost_quiet(audio: np.ndarray) -> np.ndarray:
+    """Whisper mode: brings quiet speech up to a normal level; loud audio is left alone."""
+    if audio.size == 0:
+        return audio
+    peak = float(np.max(np.abs(audio)))
+    if peak <= 0.003 or peak >= 0.25:  # silence, or already loud enough
+        return audio
+    gain = min(0.5 / peak, 30.0)
+    return np.clip(audio * gain, -1.0, 1.0).astype(np.float32)
+
+
 @dataclass
 class Job:
     audio: np.ndarray
@@ -475,14 +495,16 @@ class Engine:
                 self.live_state.language = language  # the pill and theme follow the detected language
         model = self.get_model(language)
         self._set("working", "Transcribing")
+        audio = boost_quiet(job.audio) if self.settings["boost_quiet"] else job.audio
         s = self.settings
         vocabulary = list(s["vocabulary"]) + list(s["learned_words"])
-        raw = model.transcribe(job.audio, language, vocabulary=vocabulary)
+        raw = model.transcribe(audio, language, vocabulary=vocabulary)
         p = job.project
         replacements = {**s["learned_replacements"], **s["replacements"]}  # your own rules win
         text = clean(raw, language=language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
                      spoken_commands=s["spoken_commands"], replacements=replacements,
-                     snippets=s["snippets"])
+                     snippets=s["snippets"], self_correct=s["self_correction"], lists=s["smart_lists"],
+                     email=s["email_layout"] and is_email(job.app, p["name"]))
         took = time.perf_counter() - t0
         if not text:
             self.flash("warn", "Didn't catch that. Try again")

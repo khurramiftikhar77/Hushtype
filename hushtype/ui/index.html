@@ -505,7 +505,7 @@ function viewHome() {
       <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: Auto, English, Urdu, Punjabi. Auto hears which one you speak.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Copy again.</b> Copies your last dictation again, if you copied something else in between.</p></div>
-      <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
+      <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically. Changed your mind? Say "no wait" and the correction: "Monday, no wait, Tuesday" gives "Tuesday".</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
       <div class="how"><div class="k"><span class="chip">Projects</span></div><p><b>Stay organised.</b> Dictations go to the active project, or to the project whose app rule matches (Outlook goes to Email).</p></div>
       <div class="how"><div class="k"><span class="chip">Tray icon</span></div><p><b>Always running.</b> Closing this window keeps Hushtype in the tray. Right-click the icon to quit.</p></div>
@@ -698,6 +698,10 @@ function viewSettings() {
     <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>Snippets</b><span>Say the trigger on its own and Hushtype pastes the text exactly as written</span></div>
       ${Object.entries(s.snippets || {}).map(([k, v], i) => `<div class="snip"><input type="text" value="${esc(k)}" aria-label="Trigger" data-snip-key="${i}"><textarea aria-label="Text to insert" data-snip-val="${i}" rows="2">${esc(v)}</textarea><button class="icon-btn" aria-label="Remove snippet" data-rm-snip="${i}">${icon("trash", 16)}</button></div>`).join("")}
       <div><button class="btn" data-add-snip>Add snippet</button></div></div>
+    ${sw("self_correction", "Fix my corrections", 'Say "no wait", "sorry, I mean" or "scratch that" and only the corrected version is kept')}
+    ${sw("smart_lists", "Numbered lists", 'Saying "First... Second... Finally..." makes a numbered list')}
+    ${sw("email_layout", "Email layout", "In Outlook, Gmail or an Email project: greeting and sign-off on their own lines")}
+    ${sw("boost_quiet", "Whisper mode", "Raises the volume of quiet speech before transcribing")}
     ${sw("learn_from_edits", "Learn from my corrections", "When you fix a word in History, Hushtype spells it that way from then on")}
     ${sw("learn_names", "Learn names I use often", "Names that appear in 3 dictations are added to the words Hushtype knows")}
     <div class="setting" style="flex-direction:column;align-items:stretch"><div class="label"><b>Learned from you</b><span>${Object.keys(s.learned_replacements || {}).length + (s.learned_words || []).length ? "Remove anything that was learned wrongly" : "Nothing yet. Edit a dictation in History to teach Hushtype."}</span></div>

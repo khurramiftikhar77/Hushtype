@@ -14,6 +14,9 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 - **Projects:** group dictations (Email, Work, Poetry...). Each project has its own language and text style, and can auto-file by app (Outlook goes to Email).
 - **History:** search, filter, copy, move between projects. A Combined view joins a project into one document.
 - **Snippets:** say "my signature" and get your full signature
+- **Self-correction:** "meet Monday, no wait, Tuesday" becomes "meet Tuesday"; also "sorry, I mean", "or rather", "scratch that"
+- **Smart formatting:** "First... Second... Finally..." becomes a numbered list; in Outlook and Gmail the greeting and sign-off go on their own lines
+- **Whisper mode:** quiet speech is boosted before transcription
 - **Hands-free:** hold Right Alt and double-tap Space to keep recording without holding
 - **Copy again:** Right Alt + V copies your last dictation again
 - **Recording pill:** a small timer and sound wave at the bottom of the screen while you talk

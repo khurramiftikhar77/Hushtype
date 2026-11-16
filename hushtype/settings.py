@@ -104,6 +104,10 @@ DEFAULTS: dict = {
     "replacements": {"linked in": "LinkedIn"},
     # Say the trigger, get the text. Edited on the Settings screen.
     "snippets": {"my signature": "Best regards,\nKhurram"},
+    "self_correction": True,  # "Monday, no wait, Tuesday" -> "Tuesday"
+    "smart_lists": True,  # "First... Second..." -> numbered list
+    "email_layout": True,  # greeting and sign-off on their own lines in email apps
+    "boost_quiet": True,  # whisper mode: raise the volume of quiet speech
     "learn_from_edits": True,  # fixes made in History are applied to future dictations
     "learn_names": True,  # names used in 3 dictations are added to the words Whisper should know
     "learned_replacements": {},  # {"sara": "Sarah"}

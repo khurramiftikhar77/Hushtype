@@ -382,3 +382,19 @@ def test_auto_picks_other_enabled_language(env):
     FakeModel.detected = {"ar": 0.7, "ur": 0.1, "en": 0.1}
     assert eng.detect_language(None) == "ur"  # Arabic not enabled
     FakeModel.detected = {"ur": 0.6, "hi": 0.3, "en": 0.1}
+
+
+def test_email_detection():
+    from hushtype.engine import is_email
+    assert is_email("Outlook", "Inbox") and is_email("Chrome · Gmail", "Inbox")
+    assert is_email("Notepad", "Email")
+    assert not is_email("Chrome · LinkedIn", "Inbox")
+
+
+def test_boost_quiet_only_raises_quiet_audio():
+    from hushtype.engine import boost_quiet
+    quiet = (np.sin(np.linspace(0, 100, 16000)) * 0.02).astype(np.float32)
+    loud = (np.sin(np.linspace(0, 100, 16000)) * 0.6).astype(np.float32)
+    assert abs(float(np.max(np.abs(boost_quiet(quiet)))) - 0.5) < 0.01
+    assert boost_quiet(loud) is loud
+    assert boost_quiet(np.zeros(100, dtype=np.float32)).max() == 0
