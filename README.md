@@ -135,7 +135,7 @@ Command-line options (from source, or `Hushtype.exe` in its install folder):
 | `packaging/` | PyInstaller spec, Inno Setup installer, icon |
 | `.github/workflows/build.yml` | Builds, tests and self-tests the installer on every push; tags publish a release |
 
-To publish a release: bump `__version__` in `hushtype/__init__.py` and `version` in `pyproject.toml`, then push a tag like `v0.2.0`.
+To publish a release: bump `__version__` in `hushtype/__init__.py` and `version` in `pyproject.toml`, then push to `main`. The build publishes `Hushtype-Setup-<version>.exe` as a GitHub Release, and installed apps offer it under Settings > Updates.
 
 ## License
 
