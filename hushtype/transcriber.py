@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 import numpy as np
 
 log = logging.getLogger(__name__)
+
+# No usage statistics to Hugging Face, ever.
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 # Segments this unsure are almost always Whisper guessing at noise
 # ("You", "Thank you.", "Facebook.com"), so they are dropped instead of pasted.
@@ -21,8 +25,14 @@ class Transcriber:
         from faster_whisper import WhisperModel  # heavy import, keep it lazy
 
         t0 = time.perf_counter()
-        self.model = WhisperModel(model_name, device=device, compute_type=compute_type,
-                                  cpu_threads=cpu_threads)
+        kwargs = dict(device=device, compute_type=compute_type, cpu_threads=cpu_threads)
+        try:
+            # Model already on disk: load it without touching the internet.
+            self.model = WhisperModel(model_name, local_files_only=True, **kwargs)
+        except Exception:
+            # First use only: download the model (the app's one network connection).
+            log.info("Model %s not on this computer yet, downloading it once...", model_name)
+            self.model = WhisperModel(model_name, **kwargs)
         log.info("Loaded model %s in %.1fs", model_name, time.perf_counter() - t0)
         self.beam_size = beam_size
         self.prompt = ", ".join(vocabulary) if vocabulary else None
