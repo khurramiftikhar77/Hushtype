@@ -140,6 +140,8 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .tag.ur { background: rgba(251,146,60,.22); border-color: rgba(253,186,116,.5); }
 .tag.pa { background: rgba(244,114,182,.22); border-color: rgba(249,168,212,.5); }
 .mono { font-family: var(--mono); }
+.mixed { unicode-bidi: plaintext; text-align: start; }
+.tag.mix { background: rgba(129,140,248,.25); border-color: rgba(165,180,252,.5); }
 .urdu { font-family: var(--urdu); direction: rtl; text-align: right; line-height: 2.1; font-size: 1.12em; }
 
 button { font: inherit; color: inherit; }
@@ -368,6 +370,7 @@ const keyParts = () => keyName().split(" + ");
 const keysKbd = () => keyParts().map((k) => `<kbd>${esc(k)}</kbd>`).join(" + ");
 const modName = () => keyParts()[0];
 const isCombo = () => keyParts().length > 1;
+const textAttrs = (lang) => lang === "mix" ? 'dir="auto" class="mixed' : RTL(lang) ? 'class="urdu' : 'class="';
 const RTL = (lang) => ((S.options && S.options.rtl) || ["ur", "pa"]).includes(lang);
 const enabledLangs = () => (S.settings.languages_enabled || ["en", "ur", "pa"]).filter((l) => l !== "auto");
 const langName = (l) => (S.options.languages || {})[l] || l;
@@ -391,12 +394,11 @@ function toast(msg) {
 const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 function applyTheme() {
   const choice = (S.settings && S.settings.theme) || "system";
-  const dark = choice === "dark" || (choice === "system" && (!darkQuery || darkQuery.matches));
+  const systemDark = !darkQuery || darkQuery.matches;
+  const dark = choice === "dark" || ((choice === "system" || choice === "truck") && systemDark);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
-  const live = S.live || {};
-  const lang = (live.state === "recording" || live.state === "working") ? live.language
-    : (S.projects.length ? activeProject().language : "en");
-  if (lang === "ur" || lang === "pa") document.documentElement.dataset.art = "truck";
+  // Truck art is its own theme: Pakistani truck painting, everywhere in the app.
+  if (choice === "truck") document.documentElement.dataset.art = "truck";
   else delete document.documentElement.dataset.art;
 }
 if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", applyTheme);
@@ -435,10 +437,14 @@ function render() {
 
 function langToggle() {
   const lang = activeProject().language;
+  const auto = lang === "auto";
   const exp = (S.options.experimental || []);
-  return `<div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}">
-    <button type="button" data-lang="auto" aria-pressed="${lang === "auto"}" title="Hushtype hears which language you speak">Auto</button>
-    ${enabledLangs().map((l) => `<button type="button" data-lang="${l}" aria-pressed="${lang === l}"${exp.includes(l) ? ' title="Experimental"' : ""}>${langLabel(l)}</button>`).join("")}</div>`;
+  const choices = [...enabledLangs(), "mix"];
+  return `<div class="row" style="gap:12px">
+    <div class="row" style="gap:8px"><button type="button" class="switch" aria-pressed="${auto}" aria-label="Auto-detect language" data-autodetect></button>
+      <span class="sub" style="font-size:13px;font-weight:600;color:var(--text)">Auto-detect</span></div>
+    <div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}" style="${auto ? "opacity:.45" : ""}">
+    ${choices.map((l) => `<button type="button" data-lang="${l}" aria-pressed="${!auto && lang === l}" ${auto ? "disabled" : ""}${l === "mix" ? ' title="Several languages in one dictation. Each part between pauses gets its own language. Less accurate than one language."' : exp.includes(l) ? ' title="Experimental"' : ""}>${l === "mix" ? "Mix" : langLabel(l)}</button>`).join("")}</div></div>`;
 }
 function projectSelect(id = "active-project") {
   return `<label for="${id}" class="eyebrow" style="position:absolute;left:-9999px">Active project</label>
@@ -478,7 +484,7 @@ function viewHome() {
     <div class="row" style="flex-basis:100%;gap:8px">
       <span class="chip"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span>
       <span class="chip">${esc(S.options.languages[p.language])}</span>
-      ${p.language === "auto" ? `<span class="chip">Detects English or ${S.settings.auto_other === "pa" ? "Punjabi" : "Urdu"}</span>` : `<span class="chip">Model: ${esc((S.options.models[p.language === "pa" ? "ur" : p.language] || {})[S.settings[(p.language === "pa" ? "ur" : p.language) + "_model"]] || "")}</span>`}
+      ${p.language === "mix" ? '<span class="chip">Each part in its own language</span>' : p.language === "auto" ? `<span class="chip">Detects English or ${S.settings.auto_other === "pa" ? "Punjabi" : "Urdu"}</span>` : `<span class="chip">Model: ${esc((S.options.models[p.language === "pa" ? "ur" : p.language] || {})[S.settings[(p.language === "pa" ? "ur" : p.language) + "_model"]] || "")}</span>`}
       ${p.language === "pa" ? '<span class="chip">Punjabi is experimental</span>' : ""}
       ${st.avg_wait != null ? `<span class="chip">Avg. wait ${st.avg_wait.toFixed(1)} s</span>` : ""}
     </div>
@@ -487,7 +493,7 @@ function viewHome() {
   <section class="glass card" aria-labelledby="last-h">
     <div class="row spread"><h2 id="last-h" class="eyebrow">Last dictation</h2>
       ${last ? `<div class="row"><button class="btn" data-copy-last>${icon("copy", 16)}Copy</button><button class="btn ghost" data-go="history">Open history</button></div>` : ""}</div>
-    ${last ? `<p class="big-text ${RTL(last.language) ? "urdu" : ""}">${esc(last.text)}</p>
+    ${last ? `<p ${textAttrs(last.language)} big-text">${esc(last.text)}</p>
       <div class="meta"><span>${dayLabel(last.created_at)} ${fmtTime(last.created_at)}</span><span class="mono">${fmtDur(last.duration)} recorded</span><span class="mono">${last.process_time.toFixed(1)} s to transcribe</span>${last.app ? `<span>Pasted into ${esc(last.app)}</span>` : ""}</div>`
       : `<p class="sub">Nothing yet. Click into any text box, hold ${esc(keyName())} and say something.</p>`}
   </section>
@@ -503,7 +509,7 @@ function viewHome() {
     <div class="howto">
       <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding and let go. The text is copied: press Ctrl+V to paste it anywhere. Or click the microphone above.</p></div>
       <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: Auto, English, Urdu, Punjabi. Auto hears which one you speak.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b>: cycles Auto-detect, your languages and Mix. Mix handles several languages in one dictation.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Copy again.</b> Copies your last dictation again, if you copied something else in between.</p></div>
       <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically. Changed your mind? Say "no wait" and the correction: "Monday, no wait, Tuesday" gives "Tuesday".</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
@@ -534,7 +540,7 @@ function itemHtml(d) {
   const p = projectById(d.project_id);
   return `<article class="item">
     <div class="when"><span class="mono">${fmtTime(d.created_at)}</span><span class="tag ${d.language}">${d.language.toUpperCase()}</span></div>
-    <div class="body" id="body-${d.id}"><p class="text ${RTL(d.language) ? "urdu" : ""}">${esc(d.text)}</p>
+    <div class="body" id="body-${d.id}"><p ${textAttrs(d.language)} text">${esc(d.text)}</p>
       <div class="meta"><span><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span><span class="mono">${fmtDur(d.duration)} recorded</span><span class="mono">${d.process_time.toFixed(1)} s wait</span>${d.app ? `<span>${esc(d.app)}</span>` : ""}</div></div>
     <div class="actions">
       <label for="mv${d.id}" style="position:absolute;left:-9999px">Move to project</label>
@@ -710,7 +716,7 @@ function viewSettings() {
   </section>
 
   <section class="glass card" aria-labelledby="h-app" style="gap:0"><h2 id="h-app" style="margin-bottom:8px">App and history</h2>
-    ${sel("theme", "Appearance", "System follows your Windows setting. Urdu and Punjabi get the truck art look", { system: "System", light: "Light", dark: "Dark" })}
+    ${sel("theme", "Appearance", "System follows your Windows setting. Truck art: Pakistani truck painting, bright on a dark or light ground as Windows is set", { system: "System", light: "Light", dark: "Dark", truck: "Truck art" })}
     ${sw("start_with_windows", "Start with Windows", "Runs quietly in the tray after you sign in")}
     ${sw("show_pill", "Show recording pill", "Small timer at the bottom of the screen while you talk")}
     ${sw("beep", "Sound effects", "Short beep when recording starts and stops")}
@@ -762,7 +768,7 @@ function projectDialog(p) {
   const isNew = !p; p = p || { name: "", language: activeProject().language, remove_fillers: true, capitalize: true, rules: [] };
   dialog(`<h2>${isNew ? "New project" : "Edit project"}</h2>
     <div class="field"><label for="pn">Name</label><input id="pn" type="text" value="${esc(p.name)}" placeholder="e.g. Email, Work, Poetry" ${p.id === 1 ? "" : ""}></div>
-    <div class="field"><label for="pl">Language</label><select id="pl"><option value="auto" ${p.language === "auto" ? "selected" : ""}>Auto (hears which language)</option>${enabledLangs().map((l) => `<option value="${l}" ${p.language === l ? "selected" : ""}>${esc(langName(l))}${(S.options.experimental || []).includes(l) ? " (experimental)" : ""}</option>`).join("")}</select></div>
+    <div class="field"><label for="pl">Language</label><select id="pl"><option value="auto" ${p.language === "auto" ? "selected" : ""}>Auto-detect (one language per dictation)</option><option value="mix" ${p.language === "mix" ? "selected" : ""}>Mix (several languages in one dictation)</option>${enabledLangs().map((l) => `<option value="${l}" ${p.language === l ? "selected" : ""}>${esc(langName(l))}${(S.options.experimental || []).includes(l) ? " (experimental)" : ""}</option>`).join("")}</select></div>
     <div class="setting"><div class="label"><b id="l-pf">Remove filler words</b><span>"um", "uh" (English only)</span></div><button type="button" class="switch" aria-labelledby="l-pf" id="pf" aria-pressed="${p.remove_fillers}"></button></div>
     <div class="setting"><div class="label"><b id="l-pc">Capitalise sentences</b><span>Turn off for poetry or casual chat</span></div><button type="button" class="switch" aria-labelledby="l-pc" id="pc" aria-pressed="${p.capitalize}"></button></div>
     <div class="field"><label for="pr">Auto-file from these apps (optional)</label><input id="pr" type="text" value="${esc(p.rules.join(", "))}" placeholder="e.g. outlook, gmail"><span class="sub" style="font-size:12.5px">When you dictate in a window whose app or title contains one of these words, it goes to this project.</span></div>
@@ -796,12 +802,17 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-autodetect],[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
   if ("close" in d) return closeDialog();
   if (d.go) return go(d.go);
+  if ("autodetect" in d) {
+    const on = t.getAttribute("aria-pressed") !== "true";
+    await api().set_autodetect(on); await refreshData(); render();
+    return toast(on ? "Auto-detect on: Hushtype hears which language you speak" : `Auto-detect off: ${langName(activeProject().language)}`);
+  }
   if (d.lang) { await api().set_language(d.lang); await refreshData(); render(); toast(`${activeProject().name}: ${S.options.languages[d.lang]}`); return; }
   if ("copyLast" in d) { await api().copy(S.last.text); return toast("Copied"); }
   if (d.edit) {

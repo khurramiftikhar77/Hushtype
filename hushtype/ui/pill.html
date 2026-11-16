@@ -34,6 +34,7 @@ body { display: flex; align-items: center; justify-content: center; font: 500 14
 .lang.ur { background: rgba(251,146,60,.38); }
 .lang.pa { background: rgba(244,114,182,.38); }
 .lang.auto { background: rgba(129,140,248,.45); }
+.lang.mix { background: rgba(45,212,191,.4); }
 .pill.truck { border: 4px solid transparent; padding: 7px 16px 7px 8px;
   background: linear-gradient(#22103F, #22103F) padding-box,
     repeating-linear-gradient(135deg, #FF2E88 0 10px, #FFC600 10px 20px, #00B34A 20px 30px, #00A3E0 30px 40px, #E4002B 40px 50px) border-box; }
@@ -63,7 +64,7 @@ const warn = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke
 
 function render(l) {
   let mode, html;
-  pill.classList.toggle("truck", l.language === "ur" || l.language === "pa");
+  pill.classList.toggle("truck", l.theme === "truck");
   if (l.state === "recording") {
     mode = "rec";
     if (lastMode !== mode) {

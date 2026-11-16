@@ -17,7 +17,7 @@ from hushtype.paths import settings_path
 
 log = logging.getLogger(__name__)
 
-LANGUAGES = {"auto": "Auto", "en": "English", "ur": "Urdu", "pa": "Punjabi", "hi": "Hindi",
+LANGUAGES = {"auto": "Auto", "mix": "Mix", "en": "English", "ur": "Urdu", "pa": "Punjabi", "hi": "Hindi",
              "ar": "Arabic", "fa": "Persian", "ps": "Pashto", "sd": "Sindhi"}
 NATIVE_NAMES = {"ur": "اردو", "pa": "پنجابی", "hi": "हिन्दी", "ar": "العربية", "fa": "فارسی",
                 "ps": "پښتو", "sd": "سنڌي"}
@@ -28,6 +28,7 @@ MODEL_LANGUAGE = {"pa": "ur"}  # Punjabi shares the Urdu model setting; others h
 # Auto: a small multilingual model listens first and decides which model writes the text.
 # Whisper often labels Urdu speech as Hindi (they sound the same), so both count as Urdu.
 SOUTH_ASIAN = ("ur", "hi", "pa")
+SPECIAL_LANGUAGES = ("auto", "mix")  # modes, not languages you download
 EXPERIMENTAL_LANGUAGES = ["pa", "ps", "sd"]
 
 ENGLISH_MODELS = {
@@ -91,7 +92,8 @@ DEFAULTS: dict = {
     "auto_paste": False,  # off: only copy, you paste with Ctrl+V. On: also paste into the app
     "keep_on_clipboard": True,  # leave the dictation on the clipboard for Ctrl+V
     "beep": False,
-    "theme": "system",  # system | light | dark
+    "theme": "system",  # system | light | dark | truck
+    "last_manual_language": "en",  # restored when Auto-detect is switched off
     "show_pill": True,
     "start_with_windows": True,
     "save_history": True,

@@ -16,7 +16,7 @@ from typing import Callable
 import numpy as np
 
 from hushtype.cleanup import clean
-from hushtype.settings import LANGUAGES, MODEL_LANGUAGE, SOUTH_ASIAN, Settings, now_iso
+from hushtype.settings import LANGUAGES, MODEL_LANGUAGE, SOUTH_ASIAN, SPECIAL_LANGUAGES, Settings, now_iso
 from hushtype.store import INBOX_ID, Store
 
 log = logging.getLogger(__name__)
@@ -200,6 +200,7 @@ class Engine:
             "elapsed": (time.monotonic() - s.started) if s.state == "recording" else 0.0,
             "level": self.recorder.level if (self.recorder and s.state == "recording") else 0.0,
             "hands_free": s.hands_free,
+            "theme": self.settings["theme"],
             "max_seconds": float(self.settings["max_seconds"] or 0),
             "from_app": bool(self._target and self._target.get("from_app")),
             "project": {k: project.get(k) for k in ("id", "name", "color", "language")},
@@ -232,13 +233,13 @@ class Engine:
         return bool(self._model_on_disk and self._model_on_disk(name))
 
     def enabled_languages(self) -> list[str]:
-        langs = [l for l in self.settings["languages_enabled"] if l in LANGUAGES and l != "auto"]
+        langs = [l for l in self.settings["languages_enabled"] if l in LANGUAGES and l not in SPECIAL_LANGUAGES]
         return langs or ["en"]
 
     def _needed_models(self) -> set[str]:
         names = {self.model_name(l) for l in self.enabled_languages()}
         names.add(self.model_name("en"))
-        if self._active_project()["language"] == "auto":
+        if self._active_project()["language"] in SPECIAL_LANGUAGES:
             names.add(self.model_name("detect"))
         return names
 
@@ -295,14 +296,45 @@ class Engine:
     @staticmethod
     def _models_for(language: str) -> list[str]:
         """Model slots a language needs: Auto needs the detector and both writers."""
-        return ["detect", "en", "ur"] if language == "auto" else [language]
+        return ["detect", "en", "ur"] if language in SPECIAL_LANGUAGES else [language]
 
     def _language_order(self) -> list[str]:
-        return ["auto"] + self.enabled_languages()
+        return ["auto"] + self.enabled_languages() + ["mix"]
+
+    def set_autodetect(self, on: bool) -> None:
+        """The Auto-detect switch on Home: on = Auto, off = back to the last chosen language."""
+        p = self._active_project()
+        if on:
+            if p["language"] != "auto":
+                self.settings.update({"last_manual_language": p["language"]})
+            self.set_language("auto")
+        elif p["language"] == "auto":
+            self.set_language(self.settings["last_manual_language"] or "en")
+
+    def split_for_mix(self, audio) -> list:
+        """Mix mode: cuts the recording at pauses into pieces of about 3+ seconds."""
+        from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+        stamps = get_speech_timestamps(audio, VadOptions(min_silence_duration_ms=300, speech_pad_ms=150))
+        if not stamps:
+            return [audio]
+        pieces, start, end = [], stamps[0]["start"], stamps[0]["end"]
+        for st in stamps[1:]:
+            if end - start >= 3 * SAMPLE_RATE:  # long enough to tell the language apart
+                pieces.append(audio[start:end])
+                start = st["start"]
+            end = st["end"]
+        pieces.append(audio[start:end])
+        if len(pieces) > 1 and len(pieces[-1]) < 1.5 * SAMPLE_RATE:  # too short on its own
+            last = pieces.pop()
+            pieces[-1] = np.concatenate([pieces[-1], last])
+        return pieces
 
     def detect_language(self, audio) -> str:
         """Auto mode: English or (Urdu / Punjabi, as chosen in Settings)."""
-        probs = self.get_model("detect").detect(audio)
+        return self._choose_language(self.get_model("detect").detect(audio))
+
+    def _choose_language(self, probs: dict) -> str:
         english = probs.get("en", 0.0)
         south = sum(probs.get(k, 0.0) for k in SOUTH_ASIAN)
         other = self.settings["auto_other"] if self.settings["auto_other"] in ("ur", "pa", "hi") else "ur"
@@ -489,22 +521,38 @@ class Engine:
         t0 = time.perf_counter()
         language = job.language
         detected = language == "auto"
-        if detected:
-            language = self.detect_language(job.audio)
-            with self._lock:
-                self.live_state.language = language  # the pill and theme follow the detected language
-        model = self.get_model(language)
-        self._set("working", "Transcribing")
-        audio = boost_quiet(job.audio) if self.settings["boost_quiet"] else job.audio
         s = self.settings
+        audio = boost_quiet(job.audio) if s["boost_quiet"] else job.audio
+        if language == "mix":
+            # Each piece between pauses gets its own language and model.
+            parts = [(self._choose_language(self.get_model("detect").detect(piece)), piece)
+                     for piece in self.split_for_mix(audio)]
+        else:
+            if detected:
+                language = self.detect_language(audio)
+                with self._lock:
+                    self.live_state.language = language  # the pill follows the detected language
+            parts = [(language, audio)]
+        self._set("working", "Transcribing")
         vocabulary = list(s["vocabulary"]) + list(s["learned_words"])
-        raw = model.transcribe(audio, language, vocabulary=vocabulary)
         p = job.project
         replacements = {**s["learned_replacements"], **s["replacements"]}  # your own rules win
-        text = clean(raw, language=language, fillers=p["remove_fillers"], capitalize=p["capitalize"],
-                     spoken_commands=s["spoken_commands"], replacements=replacements,
-                     snippets=s["snippets"], self_correct=s["self_correction"], lists=s["smart_lists"],
-                     email=s["email_layout"] and is_email(job.app, p["name"]))
+        whole = len(parts) == 1
+        raws, texts = [], []
+        for lang, piece in parts:
+            raw_i = self.get_model(lang).transcribe(piece, lang, vocabulary=vocabulary)
+            raws.append(raw_i)
+            texts.append(clean(raw_i, language=lang, fillers=p["remove_fillers"], capitalize=p["capitalize"],
+                               spoken_commands=s["spoken_commands"], replacements=replacements,
+                               snippets=s["snippets"] if whole else None, self_correct=s["self_correction"],
+                               lists=s["smart_lists"] and whole,
+                               email=s["email_layout"] and whole and is_email(job.app, p["name"])))
+        raw = " ".join(r for r in raws if r)
+        text = " ".join(t for t in texts if t)
+        used = {lang for (lang, _), t in zip(parts, texts) if t}
+        if job.language == "mix":
+            language = used.pop() if len(used) == 1 else "mix"
+            detected = True
         took = time.perf_counter() - t0
         if not text:
             self.flash("warn", "Didn't catch that. Try again")

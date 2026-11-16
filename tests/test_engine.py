@@ -153,6 +153,8 @@ def test_toggle_language_and_repaste(env):
     eng.toggle_language()
     assert store.project(1)["language"] == "pa"
     eng.toggle_language()
+    assert store.project(1)["language"] == "mix"
+    eng.toggle_language()
     assert store.project(1)["language"] == "auto"
     eng.toggle_language()
     assert store.project(1)["language"] == "en"
@@ -301,6 +303,39 @@ def test_learns_names_after_three_uses(env):
     assert "Zainab" in seen[-1]  # now passed to Whisper as a known word
 
 
+def test_mix_mode_transcribes_each_piece_in_its_language(env):
+    eng, settings, store, pasted, *_ = env
+    store.update_project(1, language="mix")
+    pieces = [np.zeros(16000 * 3, dtype=np.float32), np.ones(16000 * 3, dtype=np.float32)]
+    eng.split_for_mix = lambda audio: pieces
+    answers = iter([{"en": 0.95}, {"ur": 0.8, "en": 0.1}])
+    FakeModel.detect = lambda self, audio: next(answers)
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    item = store.last()
+    assert item["language"] == "mix"
+    assert item["text"].startswith("Thanks for sharing this,") and item["text"].endswith("السلام علیکم")
+    FakeModel.detect = lambda self, audio: dict(FakeModel.detected)
+
+
+def test_autodetect_switch_remembers_the_language(env):
+    eng, settings, store, *_ = env
+    store.update_project(1, language="ur")
+    eng.set_autodetect(True)
+    assert store.project(1)["language"] == "auto"
+    eng.set_autodetect(False)
+    assert store.project(1)["language"] == "ur"
+
+
+def test_language_cycle_includes_mix(env):
+    eng, settings, store, *_ = env
+    settings.update({"languages_enabled": ["en"]})
+    store.update_project(1, language="en")
+    eng.toggle_language()
+    assert store.project(1)["language"] == "mix"
+    eng.toggle_language()
+    assert store.project(1)["language"] == "auto"
+
+
 def test_copy_only_is_the_default(tmp_path):
     assert Settings(tmp_path / "fresh.json")["auto_paste"] is False
 
@@ -332,8 +367,8 @@ def test_punjabi_uses_urdu_model_and_cycles(env):
     model = eng.get_model("pa")
     assert eng.get_model("ur") is model  # one shared model, loaded once
     eng.toggle_language()
-    assert store.project(1)["language"] == "auto"
-    eng.toggle_language(); eng.toggle_language(); eng.toggle_language()
+    assert store.project(1)["language"] == "mix"
+    eng.toggle_language(); eng.toggle_language(); eng.toggle_language(); eng.toggle_language()
     assert store.project(1)["language"] == "pa"
 
 
@@ -368,7 +403,7 @@ def test_language_cycle_uses_enabled_languages(env):
     eng.toggle_language()
     assert store.project(1)["language"] == "ar"
     eng.toggle_language()
-    assert store.project(1)["language"] == "auto"
+    assert store.project(1)["language"] == "mix"
 
 
 def test_auto_picks_other_enabled_language(env):

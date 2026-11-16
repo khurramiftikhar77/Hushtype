@@ -92,11 +92,11 @@ class Api:
         enabled = e.enabled_languages()
         out = []
         for code, name in LANGUAGES.items():
-            if code == "auto":
+            if code in ("auto", "mix"):
                 continue
             model = e.model_name(code)
             slot = MODEL_LANGUAGE.get(code, code)
-            shared = [LANGUAGES[o] for o in LANGUAGES if o not in ("auto", code) and e.model_name(o) == model and o in enabled]
+            shared = [LANGUAGES[o] for o in LANGUAGES if o not in ("auto", "mix", code) and e.model_name(o) == model and o in enabled]
             out.append({
                 "code": code, "name": name, "native": NATIVE_NAMES.get(code, ""),
                 "enabled": code in enabled, "model": model, "slot": slot,
@@ -184,6 +184,11 @@ class Api:
 
     def set_active_project(self, project_id: int) -> dict:
         self._s.update({"active_project": int(project_id)})
+        self._gui.refresh_tray()
+        return self._e.live()
+
+    def set_autodetect(self, on: bool) -> dict:
+        self._e.set_autodetect(bool(on))
         self._gui.refresh_tray()
         return self._e.live()
 
