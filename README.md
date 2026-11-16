@@ -7,7 +7,7 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 ## Features
 
 - **Dictate anywhere:** works in any app that accepts text. The text also stays copied, so Ctrl+V pastes it again anywhere
-- **English and Urdu:** switch per project, or with Right Alt + L
+- **English, Urdu and Punjabi:** switch per project, or with Right Alt + L. Punjabi (Pakistani) is written in Urdu script and is experimental
 - **Automatic punctuation:** commas, full stops and question marks are added for you. Say "new line" or "new paragraph" for line breaks.
 - **Projects:** group dictations (Email, Work, Poetry...). Each project has its own language and text style, and can auto-file by app (Outlook goes to Email).
 - **History:** search, filter, copy, move between projects. A Combined view joins a project into one document.
@@ -48,7 +48,7 @@ The first run creates a virtual environment and installs everything.
 |---|---|
 | Hold **Right Alt + Space**, speak, let go | Your words are pasted where the cursor is, and stay copied |
 | Hold **Right Alt**, double-tap **Space** | Hands-free recording. Press the shortcut again to finish |
-| **Right Alt + L** | Switch the active project between English and Urdu |
+| **Right Alt + L** | Switch the active project between English, Urdu and Punjabi |
 | **Right Alt + V** | Paste your last dictation again |
 | Say "new line" / "new paragraph" | Line breaks. Punctuation is automatic |
 | Say a snippet trigger, e.g. "my signature" | Inserts the saved text |
@@ -65,6 +65,10 @@ Closing the window keeps Hushtype running in the tray. To quit, right-click the 
 ## Urdu
 
 Urdu uses a larger multilingual model (`large-v3-turbo`, about 1.6 GB) that downloads the first time you switch a project to Urdu. On a laptop CPU, expect a few seconds more per sentence than English. Text is written in Urdu script. Mixing English and Urdu in one sentence is not supported well by Whisper yet: pick one language per dictation.
+
+## Punjabi (experimental)
+
+Punjabi is written in Urdu script (Shahmukhi) and is aimed at Pakistani Punjabi, including the common mix of Punjabi and Urdu. Whisper itself writes Punjabi in Gurmukhi, so Hushtype uses the Urdu model with a Punjabi example sentence that steers it towards Punjabi words. It needs no extra download. Some words may come out in their Urdu form; feedback with example sentences helps improve it.
 
 ## Privacy
 

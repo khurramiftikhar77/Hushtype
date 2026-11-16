@@ -26,7 +26,12 @@ MAX_NO_SPEECH_PROB = 0.6
 PROMPTS = {
     "en": "Hi, thanks for sharing this. I really enjoyed reading it, and I agree. Shall we talk on Monday?",
     "ur": "السلام علیکم، آپ کیسے ہیں؟ میں ٹھیک ہوں، شکریہ۔ کل ملاقات کرتے ہیں۔",
+    # Pakistani Punjabi in Shahmukhi, mixed with Urdu the way people speak it.
+    "pa": "السلام علیکم، کی حال اے؟ میں ٹھیک آں، تسی سناؤ۔ کل ملدے آں، فیر گل کراں گے۔ بہت شکریہ جی۔",
 }
+# Whisper language code used for each Hushtype language. Whisper writes Punjabi
+# in Gurmukhi, so Punjabi is decoded as Urdu (Urdu script) with a Punjabi prompt.
+WHISPER_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur"}
 
 
 def model_on_disk(model_name: str) -> bool:
@@ -87,7 +92,7 @@ class Transcriber:
         with self._lock:
             segments, _info = self.model.transcribe(
                 audio,
-                language=language,
+                language=WHISPER_LANGUAGE.get(language, language),
                 beam_size=self.beam_size,
                 # One pass only. The default retries up to 6 times at higher
                 # temperatures, which on a laptop CPU costs many seconds and

@@ -17,7 +17,11 @@ from hushtype.paths import settings_path
 
 log = logging.getLogger(__name__)
 
-LANGUAGES = {"en": "English", "ur": "Urdu"}
+LANGUAGES = {"en": "English", "ur": "Urdu", "pa": "Punjabi"}
+# Which downloaded model each language uses. Punjabi (Pakistani, written in
+# Urdu script / Shahmukhi) shares the Urdu model, steered by a Punjabi prompt.
+MODEL_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur"}
+EXPERIMENTAL_LANGUAGES = ["pa"]
 
 MODELS = {
     "en": {

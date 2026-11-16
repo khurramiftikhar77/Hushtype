@@ -16,7 +16,7 @@ from typing import Callable
 import numpy as np
 
 from hushtype.cleanup import clean
-from hushtype.settings import LANGUAGES, Settings, now_iso
+from hushtype.settings import LANGUAGES, MODEL_LANGUAGE, Settings, now_iso
 from hushtype.store import INBOX_ID, Store
 
 log = logging.getLogger(__name__)
@@ -196,15 +196,17 @@ class Engine:
         return p
 
     def model_name(self, language: str) -> str:
-        return self.settings[f"{language}_model"]
+        return self.settings[f"{MODEL_LANGUAGE.get(language, language)}_model"]
 
     def model_ready_on_disk(self, language: str) -> bool:
+        language = MODEL_LANGUAGE.get(language, language)
         if language in self.models:
             return True
         return bool(self._model_on_disk and self._model_on_disk(self.model_name(language)))
 
     def get_model(self, language: str):
         """Returns the loaded model for a language, loading (or downloading) it once."""
+        language = MODEL_LANGUAGE.get(language, language)  # Punjabi uses the Urdu model
         with self._model_lock:
             name = self.model_name(language)
             if language in self.models and self._model_names.get(language) == name:
@@ -330,8 +332,10 @@ class Engine:
                            hwnd=target["hwnd"], app=target["app"], duration=duration))
 
     def toggle_language(self) -> None:
+        """Cycles the active project's language: English, Urdu, Punjabi."""
         p = self._active_project()
-        new = "ur" if p["language"] == "en" else "en"
+        order = list(LANGUAGES)
+        new = order[(order.index(p["language"]) + 1) % len(order)] if p["language"] in order else "en"
         self.store.update_project(p["id"], language=new)
         self.flash("info", f"{p['name']}: {LANGUAGES[new]}")
         if not self.model_ready_on_disk(new):

@@ -66,6 +66,7 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .tag { padding: 1px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; border: 1px solid; }
 .tag.en { background: rgba(94,234,212,.2); border-color: rgba(94,234,212,.45); }
 .tag.ur { background: rgba(251,146,60,.22); border-color: rgba(253,186,116,.5); }
+.tag.pa { background: rgba(244,114,182,.22); border-color: rgba(249,168,212,.5); }
 .mono { font-family: var(--mono); }
 .urdu { font-family: var(--urdu); direction: rtl; text-align: right; line-height: 2.1; font-size: 1.12em; }
 
@@ -201,6 +202,7 @@ const keyParts = () => keyName().split(" + ");
 const keysKbd = () => keyParts().map((k) => `<kbd>${esc(k)}</kbd>`).join(" + ");
 const modName = () => keyParts()[0];
 const isCombo = () => keyParts().length > 1;
+const RTL = (lang) => lang === "ur" || lang === "pa";
 const mb = (b) => Math.round(b / 1e6).toLocaleString();
 function downloadBar(lang) {
   const d = S.live && S.live.downloads && S.live.downloads[lang];
@@ -249,7 +251,8 @@ function langToggle() {
   const lang = activeProject().language;
   return `<div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}">
     <button type="button" data-lang="en" aria-pressed="${lang === "en"}">English</button>
-    <button type="button" data-lang="ur" aria-pressed="${lang === "ur"}">Urdu <span class="urdu" style="font-size:13px;line-height:1">اردو</span></button></div>`;
+    <button type="button" data-lang="ur" aria-pressed="${lang === "ur"}">Urdu <span class="urdu" style="font-size:13px;line-height:1">اردو</span></button>
+    <button type="button" data-lang="pa" aria-pressed="${lang === "pa"}" title="Pakistani Punjabi, written in Urdu script. Experimental.">Punjabi <span class="urdu" style="font-size:13px;line-height:1">پنجابی</span></button></div>`;
 }
 function projectSelect(id = "active-project") {
   return `<label for="${id}" class="eyebrow" style="position:absolute;left:-9999px">Active project</label>
@@ -283,7 +286,8 @@ function viewHome() {
     <div class="row" style="flex-basis:100%;gap:8px">
       <span class="chip"><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span>
       <span class="chip">${esc(S.options.languages[p.language])}</span>
-      <span class="chip">Model: ${esc(S.options.models[p.language][S.settings[p.language + "_model"]] || "")}</span>
+      <span class="chip">Model: ${esc((S.options.models[p.language === "pa" ? "ur" : p.language] || {})[S.settings[(p.language === "pa" ? "ur" : p.language) + "_model"]] || "")}</span>
+      ${p.language === "pa" ? '<span class="chip">Punjabi is experimental</span>' : ""}
       ${st.avg_wait != null ? `<span class="chip">Avg. wait ${st.avg_wait.toFixed(1)} s</span>` : ""}
     </div>
   </section>
@@ -291,7 +295,7 @@ function viewHome() {
   <section class="glass card" aria-labelledby="last-h">
     <div class="row spread"><h2 id="last-h" class="eyebrow">Last dictation</h2>
       ${last ? `<div class="row"><button class="btn" data-copy-last>${icon("copy", 16)}Copy</button><button class="btn ghost" data-go="history">Open history</button></div>` : ""}</div>
-    ${last ? `<p class="big-text ${last.language === "ur" ? "urdu" : ""}">${esc(last.text)}</p>
+    ${last ? `<p class="big-text ${RTL(last.language) ? "urdu" : ""}">${esc(last.text)}</p>
       <div class="meta"><span>${dayLabel(last.created_at)} ${fmtTime(last.created_at)}</span><span class="mono">${fmtDur(last.duration)} recorded</span><span class="mono">${last.process_time.toFixed(1)} s to transcribe</span>${last.app ? `<span>Pasted into ${esc(last.app)}</span>` : ""}</div>`
       : `<p class="sub">Nothing yet. Click into any text box, hold ${esc(keyName())} and say something.</p>`}
   </section>
@@ -307,7 +311,7 @@ function viewHome() {
     <div class="howto">
       <div class="how"><div class="k">Hold ${keysKbd()}</div><p><b>Dictate.</b> Speak while holding, let go to paste where your cursor is. The text also stays copied, so Ctrl+V works anywhere.</p></div>
       <div class="how"><div class="k">${isCombo() ? `<kbd>${esc(modName())}</kbd> + <kbd>${esc(keyParts()[1])}</kbd><kbd>${esc(keyParts()[1])}</kbd>` : `<kbd>${esc(keyName())}</kbd><kbd>${esc(keyName())}</kbd>`}</div><p><b>Hands-free.</b> ${isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])}` : "Double-tap"} to keep recording without holding. Press the shortcut again to finish.</p></div>
-      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project between English and Urdu.</p></div>
+      <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>L</kbd></div><p><b>Switch language</b> of the active project: English, Urdu, Punjabi.</p></div>
       <div class="how"><div class="k"><kbd>${esc(modName())}</kbd> + <kbd>V</kbd></div><p><b>Paste again.</b> Re-pastes your last dictation, for when it landed in the wrong box.</p></div>
       <div class="how"><div class="k"><span class="chip">"new line"</span><span class="chip">"new paragraph"</span></div><p><b>Line breaks.</b> Say these while dictating. Commas, full stops and question marks are added automatically.</p></div>
       <div class="how"><div class="k">${snippets.length ? snippets.slice(0, 2).map((s) => `<span class="chip">"${esc(s)}"</span>`).join("") : '<span class="chip">Snippets</span>'}</div><p><b>Snippets.</b> Say a trigger to insert saved text. <button class="btn ghost" style="min-height:0;padding:0" data-go="settings">Edit snippets</button></p></div>
@@ -323,7 +327,7 @@ function historyFilters(showProject) {
     <input id="hq" type="search" placeholder="Search your dictations" value="${esc(S.hq)}" style="flex:1 1 260px;min-width:0;border-radius:999px">
     ${showProject ? `<label for="hproj" style="position:absolute;left:-9999px">Project</label><select id="hproj"><option value="">All projects</option>${S.projects.map((p) => `<option value="${p.id}" ${String(p.id) === String(S.hproj) ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>` : ""}
     <div class="seg" role="group" aria-label="Language filter">
-      ${[["", "All"], ["en", "English"], ["ur", "Urdu"]].map(([k, l]) => `<button type="button" data-hlang="${k}" aria-pressed="${S.hlang === k}">${l}</button>`).join("")}
+      ${[["", "All"], ["en", "English"], ["ur", "Urdu"], ["pa", "Punjabi"]].map(([k, l]) => `<button type="button" data-hlang="${k}" aria-pressed="${S.hlang === k}">${l}</button>`).join("")}
     </div></div>`;
 }
 
@@ -338,7 +342,7 @@ function itemHtml(d) {
   const p = projectById(d.project_id);
   return `<article class="item">
     <div class="when"><span class="mono">${fmtTime(d.created_at)}</span><span class="tag ${d.language}">${d.language.toUpperCase()}</span></div>
-    <div class="body"><p class="text ${d.language === "ur" ? "urdu" : ""}">${esc(d.text)}</p>
+    <div class="body"><p class="text ${RTL(d.language) ? "urdu" : ""}">${esc(d.text)}</p>
       <div class="meta"><span><span class="pdot" style="background:${PCOLORS[p.color] || PCOLORS.teal}"></span> ${esc(p.name)}</span><span class="mono">${fmtDur(d.duration)} recorded</span><span class="mono">${d.process_time.toFixed(1)} s wait</span>${d.app ? `<span>${esc(d.app)}</span>` : ""}</div></div>
     <div class="actions">
       <label for="mv${d.id}" style="position:absolute;left:-9999px">Move to project</label>
@@ -367,7 +371,7 @@ async function loadHistory() {
   const el = $("#hist"); if (!el) return;
   if (inProject && S.ptab === "combined") {
     const text = S.history.map((d) => d.text).join("\n\n");
-    const ur = S.history.length && S.history.every((d) => d.language === "ur");
+    const ur = S.history.length && S.history.every((d) => RTL(d.language));
     el.innerHTML = S.history.length ? `<pre class="glass combined ${ur ? "urdu" : ""}" style="font-family:${ur ? "var(--urdu)" : "var(--font)"}">${esc(text)}</pre>` : `<div class="glass list"><p class="empty">No dictations in this project yet.</p></div>`;
   } else renderHistoryList(el);
 }
@@ -419,7 +423,7 @@ function modelRow(lang) {
   const status = m.loading ? "downloading or loading now..." : m.on_disk ? "installed" : "not downloaded yet";
   const bar = `<div id="dl-${lang}" style="flex-basis:100%">${downloadBar(lang)}</div>`;
   const btn = !m.on_disk && !m.loading ? `<button class="btn solid" data-download="${lang}">Download</button>` : "";
-  return sel(lang + "_model", `${S.options.languages[lang]} model`, `${esc(name)} · ${size} · ${status}${m.error ? " · last error: " + esc(m.error) : ""}`, S.options.models[lang], btn).replace(/<\/div>$/, bar + "</div>");
+  return sel(lang + "_model", lang === "ur" ? "Urdu and Punjabi model" : `${S.options.languages[lang]} model`, `${esc(name)} · ${size} · ${status}${m.error ? " · last error: " + esc(m.error) : ""}`, S.options.models[lang], btn).replace(/<\/div>$/, bar + "</div>");
 }
 
 function viewSettings() {
@@ -510,7 +514,7 @@ function projectDialog(p) {
   const isNew = !p; p = p || { name: "", language: activeProject().language, remove_fillers: true, capitalize: true, rules: [] };
   dialog(`<h2>${isNew ? "New project" : "Edit project"}</h2>
     <div class="field"><label for="pn">Name</label><input id="pn" type="text" value="${esc(p.name)}" placeholder="e.g. Email, Work, Poetry" ${p.id === 1 ? "" : ""}></div>
-    <div class="field"><label for="pl">Language</label><select id="pl"><option value="en" ${p.language === "en" ? "selected" : ""}>English</option><option value="ur" ${p.language === "ur" ? "selected" : ""}>Urdu</option></select></div>
+    <div class="field"><label for="pl">Language</label><select id="pl"><option value="en" ${p.language === "en" ? "selected" : ""}>English</option><option value="ur" ${p.language === "ur" ? "selected" : ""}>Urdu</option><option value="pa" ${p.language === "pa" ? "selected" : ""}>Punjabi (Urdu script, experimental)</option></select></div>
     <div class="setting"><div class="label"><b id="l-pf">Remove filler words</b><span>"um", "uh" (English only)</span></div><button type="button" class="switch" aria-labelledby="l-pf" id="pf" aria-pressed="${p.remove_fillers}"></button></div>
     <div class="setting"><div class="label"><b id="l-pc">Capitalise sentences</b><span>Turn off for poetry or casual chat</span></div><button type="button" class="switch" aria-labelledby="l-pc" id="pc" aria-pressed="${p.capitalize}"></button></div>
     <div class="field"><label for="pr">Auto-file from these apps (optional)</label><input id="pr" type="text" value="${esc(p.rules.join(", "))}" placeholder="e.g. outlook, gmail"><span class="sub" style="font-size:12.5px">When you dictate in a window whose app or title contains one of these words, it goes to this project.</span></div>

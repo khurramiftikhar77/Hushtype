@@ -145,6 +145,8 @@ def test_toggle_language_and_repaste(env):
     eng.toggle_language()
     assert store.project(1)["language"] == "ur"
     eng.toggle_language()
+    assert store.project(1)["language"] == "pa"
+    eng.toggle_language()
     assert store.project(1)["language"] == "en"
     eng.repaste()
     assert pasted == []  # nothing yet
@@ -226,3 +228,25 @@ def test_settings_migrate_old_shortcut(tmp_path):
     assert Settings(path)["hotkey"] == "alt_r+space"
     path.write_text(json.dumps({"hotkey": "f9"}))
     assert Settings(path)["hotkey"] == "f9"
+
+
+def test_punjabi_uses_urdu_model_and_cycles(env):
+    eng, settings, store, pasted, focused, loaded, _ = env
+    store.update_project(1, language="pa")
+    assert eng.model_name("pa") == settings["ur_model"]
+    model = eng.get_model("pa")
+    assert eng.get_model("ur") is model  # one shared model, loaded once
+    eng.toggle_language()
+    assert store.project(1)["language"] == "en"
+    eng.toggle_language(); eng.toggle_language()
+    assert store.project(1)["language"] == "pa"
+
+
+def test_punjabi_dictation_saved_as_punjabi(env):
+    eng, settings, store, pasted, *_ = env
+    model = eng.get_model("pa")
+    model.transcribe = lambda audio, language: {"en": "hello", "ur": "اردو", "pa": "کی حال اے"}[language]
+    store.update_project(1, language="pa")
+    eng.begin_recording(); eng.finish_recording(); run(eng)
+    assert pasted[-1] == "کی حال اے "
+    assert store.last()["language"] == "pa"
