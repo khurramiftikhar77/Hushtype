@@ -17,6 +17,8 @@ Speech is transcribed on your own computer with [faster-whisper](https://github.
 - **Copy again:** Right Alt + V copies your last dictation again
 - **Recording pill:** a small timer and sound wave at the bottom of the screen while you talk
 - **Filler removal:** "um", "uh", "erm" are dropped
+- **Light and dark themes**, following Windows or chosen in Settings
+- **Truck art look** in Urdu and Punjabi mode, with painted flowers and chamak-patti borders
 - **Runs in the tray** and can start with Windows
 - **Fully offline** after a one-time model download (with a progress bar)
 - **Update button:** Settings > Updates checks GitHub for a new version and installs it, only when you press it

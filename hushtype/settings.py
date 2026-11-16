@@ -77,6 +77,7 @@ DEFAULTS: dict = {
     "auto_paste": False,  # off: only copy, you paste with Ctrl+V. On: also paste into the app
     "keep_on_clipboard": True,  # leave the dictation on the clipboard for Ctrl+V
     "beep": False,
+    "theme": "system",  # system | light | dark
     "show_pill": True,
     "start_with_windows": True,
     "save_history": True,
