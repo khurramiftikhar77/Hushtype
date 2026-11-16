@@ -59,6 +59,7 @@ HOTKEYS = {
 }
 
 REVIEW_INTERVALS = {7: "Every week", 30: "Every month", 0: "Never"}
+MAX_RECORDING = {60: "1 minute", 120: "2 minutes (recommended)", 180: "3 minutes", 300: "5 minutes"}
 
 DEFAULTS: dict = {
     "settings_version": SETTINGS_VERSION,
@@ -70,6 +71,7 @@ DEFAULTS: dict = {
     "beam_size": 5,
     "cpu_threads": 0,
     "min_duration": 0.4,
+    "max_seconds": 120,  # recording stops by itself after this, with a countdown
     "preroll": 0.3,
     "trailing_space": True,
     "auto_paste": False,  # off: only copy, you paste with Ctrl+V. On: also paste into the app

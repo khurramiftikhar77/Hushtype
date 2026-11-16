@@ -191,6 +191,8 @@ const PCOLORS = { teal: "#2DD4BF", indigo: "#818CF8", orange: "#FB923C", pink: "
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = (sel) => document.querySelector(sel);
 const api = () => window.pywebview.api;
+const remaining = (l) => Math.max(0, (l.max_seconds || 0) - (l.elapsed || 0));
+const countdownHtml = (l) => l.max_seconds ? `<span class="mono" id="hero-left" style="font-size:15px;font-weight:500;padding:4px 10px;border-radius:999px;background:${remaining(l) <= 15 ? "rgba(251,146,60,.35)" : "rgba(255,255,255,.14)"}">${fmtDur(remaining(l))} left</span>` : "";
 const fmtDur = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const dayLabel = (iso) => {
@@ -275,7 +277,7 @@ function orbInner() {
 function heroContent() {
   const l = S.live || { state: "loading", message: "Starting..." };
   const k = keysKbd();
-  if (l.state === "recording") return `<h2>Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span></h2><p class="sub">${l.hands_free ? `Hands-free. Press ${k} again to finish.` : (l.from_app ? "Click the button again to finish. The text will be copied." : S.settings.auto_paste ? "Let go to paste." : "Let go and the text is copied.")}</p>`;
+  if (l.state === "recording") return `<h2 style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">Listening <span class="mono" id="hero-timer">${fmtDur(l.elapsed)}</span>${countdownHtml(l)}</h2><p class="sub">${l.hands_free ? `Hands-free. Press ${k} again to finish.` : (l.from_app ? "Click the button again to finish. The text will be copied." : S.settings.auto_paste ? "Let go to paste." : "Let go and the text is copied.")}</p>`;
   if (l.state === "working") return `<h2>Transcribing...</h2><p class="sub">${S.settings.auto_paste ? "Your text will appear where your cursor is." : "Your text will be copied, ready for Ctrl+V."}</p>`;
   if (l.state === "model" || l.state === "loading") {
     const lang = Object.keys(l.downloads || {})[0];
@@ -456,6 +458,7 @@ function viewSettings() {
 
   <section class="glass card" aria-labelledby="h-keys" style="gap:0"><h2 id="h-keys" style="margin-bottom:8px">Shortcut and language</h2>
     ${sel("hotkey", "Dictation key", "Hold to record, release to paste", S.options.hotkeys)}
+    ${sel("max_seconds", "Longest recording", "Stops by itself and copies the text. Shorter recordings come back faster, especially in Urdu and Punjabi", S.options.max_recording)}
     ${sw("hands_free", "Hands-free double-tap", isCombo() ? `Hold ${esc(modName())} and double-tap ${esc(keyParts()[1])} to record without holding` : `Double-tap ${esc(keyName())} to record without holding`)}
     ${sw("language_switch_key", `${esc(modName())} + L and ${esc(modName())} + V`, "Switch language, and copy the last dictation again")}
     ${modelRow("en")}
@@ -608,7 +611,7 @@ document.addEventListener("change", async (e) => {
   const t = e.target;
   if (t.matches("[data-active-project]")) { await api().set_active_project(Number(t.value)); await refreshData(); render(); return toast(`Active project: ${activeProject().name}`); }
   if (t.dataset.set) {
-    let v = t.value; if (t.dataset.set === "review_days") v = Number(v);
+    let v = t.value; if (t.dataset.set === "review_days" || t.dataset.set === "max_seconds") v = Number(v);
     S.settings = await api().set_settings({ [t.dataset.set]: v });
     if (t.dataset.set.endsWith("_model")) await refreshModels();
     render(); return toast("Saved");
@@ -659,7 +662,10 @@ async function poll() {
           orb.disabled = !["idle", "recording"].includes(S.live.state);
           orb.setAttribute("aria-label", S.live.state === "recording" ? "Stop recording" : "Start recording");
         }
-      } else if (S.live.state === "recording") { const tm = $("#hero-timer"); if (tm) tm.textContent = fmtDur(S.live.elapsed); }
+      } else if (S.live.state === "recording") {
+        const tm = $("#hero-timer"); if (tm) tm.textContent = fmtDur(S.live.elapsed);
+        const left = $("#hero-left"); if (left) left.outerHTML = countdownHtml(S.live);
+      }
     }
     if (S.live.version !== S.version) {
       S.version = S.live.version; await refreshData();

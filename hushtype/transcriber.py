@@ -20,6 +20,7 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 # ("You", "Thank you.", "Facebook.com"), so they are dropped instead of pasted.
 MIN_AVG_LOGPROB = -1.0
 MAX_NO_SPEECH_PROB = 0.6
+LONG_AUDIO_SECONDS = 28
 
 # Whisper imitates the style of its prompt. A well punctuated example makes it
 # add commas, full stops and question marks on its own, without spoken commands.
@@ -74,6 +75,10 @@ class Transcriber:
             # First use only: download the model (the app's one network connection).
             log.info("Model %s not on this computer yet, downloading it once...", model_name)
             self.model = WhisperModel(model_name, **kwargs)
+        from faster_whisper import BatchedInferencePipeline
+
+        # For long recordings: splits speech at natural pauses, transcribes each piece.
+        self.pipeline = BatchedInferencePipeline(model=self.model)
         log.info("Loaded model %s in %.1fs", model_name, time.perf_counter() - t0)
         self.name = model_name
         self.beam_size = beam_size
@@ -90,21 +95,22 @@ class Transcriber:
         """audio: mono float32 at 16 kHz. language: 'en' or 'ur'."""
         t0 = time.perf_counter()
         with self._lock:
-            segments, _info = self.model.transcribe(
-                audio,
-                language=WHISPER_LANGUAGE.get(language, language),
-                beam_size=self.beam_size,
-                # One pass only. The default retries up to 6 times at higher
-                # temperatures, which on a laptop CPU costs many seconds and
-                # rarely helps with short dictation.
-                temperature=0.0,
-                vad_filter=True,
-                condition_on_previous_text=False,
-                initial_prompt=self._prompt(language),
-            )
+            kwargs = dict(language=WHISPER_LANGUAGE.get(language, language), beam_size=self.beam_size,
+                          # One pass only: retries at higher temperatures cost many
+                          # seconds on a laptop CPU and rarely help short dictation.
+                          temperature=0.0, initial_prompt=self._prompt(language))
+            if len(audio) <= LONG_AUDIO_SECONDS * 16000:
+                # Up to ~30 s: one window, the plain decoder is most accurate.
+                segments, _info = self.model.transcribe(audio, vad_filter=True,
+                                                        condition_on_previous_text=False, **kwargs)
+            else:
+                # Longer: split at natural pauses first. In Urdu tests the plain
+                # decoder skipped whole sentences at the 30 s window boundary.
+                segments, _info = self.pipeline.transcribe(audio, batch_size=4, **kwargs)
+            segments = list(segments)
             kept = []
             for s in segments:
-                if s.avg_logprob < MIN_AVG_LOGPROB and s.no_speech_prob > MAX_NO_SPEECH_PROB:
+                if s.avg_logprob < MIN_AVG_LOGPROB and (s.no_speech_prob or 0) > MAX_NO_SPEECH_PROB:
                     log.info("Dropped unsure segment %r (logprob %.2f, no-speech %.2f)",
                              s.text, s.avg_logprob, s.no_speech_prob)
                     continue

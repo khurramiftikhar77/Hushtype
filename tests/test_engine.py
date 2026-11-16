@@ -233,6 +233,20 @@ def test_download_progress_is_reported(tmp_path):
     assert eng.live()["downloads"] == {}
 
 
+def test_recording_stops_at_the_time_limit(env):
+    import time as _t
+    eng, settings, store, pasted, *_ = env
+    settings.update({"max_seconds": 0.3})
+    eng.begin_recording()
+    assert eng.live()["max_seconds"] == 0.3
+    for _ in range(40):  # the engine's own worker transcribes it
+        if pasted:
+            break
+        _t.sleep(0.05)
+    assert pasted, "recording was not stopped at the limit"
+    assert eng.live()["state"] != "recording"
+
+
 def test_copy_only_is_the_default(tmp_path):
     assert Settings(tmp_path / "fresh.json")["auto_paste"] is False
 

@@ -179,6 +179,7 @@ class Engine:
             "elapsed": (time.monotonic() - s.started) if s.state == "recording" else 0.0,
             "level": self.recorder.level if (self.recorder and s.state == "recording") else 0.0,
             "hands_free": s.hands_free,
+            "max_seconds": float(self.settings["max_seconds"] or 0),
             "from_app": bool(self._target and self._target.get("from_app")),
             "project": {k: project.get(k) for k in ("id", "name", "color", "language")},
             "language": s.language if s.state in ("recording", "working") else project.get("language", "en"),
@@ -302,6 +303,24 @@ class Engine:
             self.live_state.project = target["project"]
             self.live_state.language = target["project"]["language"]
         self._set("recording", "Listening")
+        self._start_limit_watch(self.live_state.started)
+
+    def _start_limit_watch(self, started: float) -> None:
+        """Stops the recording by itself when it reaches the maximum length."""
+        limit = float(self.settings["max_seconds"] or 0)
+        if limit <= 0:
+            return
+
+        def watch():
+            while self.live_state.state == "recording" and self.live_state.started == started:
+                if time.monotonic() - started >= limit:
+                    log.info("Recording reached the %ss limit, stopping", int(limit))
+                    self.finish_recording()
+                    self.flash("info", "Time limit reached. Text copied")
+                    return
+                time.sleep(0.1)
+
+        threading.Thread(target=watch, daemon=True).start()
 
     def _hands_free_on(self) -> None:
         with self._lock:

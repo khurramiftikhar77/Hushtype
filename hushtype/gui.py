@@ -12,7 +12,7 @@ import time
 from hushtype import BUILD, __version__, winutil
 from hushtype.engine import Engine
 from hushtype.paths import data_dir, resource_path
-from hushtype.settings import (HOTKEYS, LANGUAGES, MODEL_SIZES, MODELS, REVIEW_INTERVALS, Settings)
+from hushtype.settings import (HOTKEYS, LANGUAGES, MAX_RECORDING, MODEL_SIZES, MODELS, REVIEW_INTERVALS, Settings)
 from hushtype.store import Store
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ class Api:
                 "model_sizes": MODEL_SIZES,
                 "hotkeys": HOTKEYS,
                 "review_intervals": {str(k): v for k, v in REVIEW_INTERVALS.items()},
+                "max_recording": {str(k): v for k, v in MAX_RECORDING.items()},
             },
             "projects": self._db.projects(),
             "stats": self._db.stats(),
