@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 
-from hushtype import __version__, winutil
+from hushtype import BUILD, __version__, winutil
 from hushtype.engine import Engine
 from hushtype.paths import data_dir, resource_path
 from hushtype.settings import (HOTKEYS, LANGUAGES, MODEL_SIZES, MODELS, REVIEW_INTERVALS, Settings)
@@ -46,6 +46,7 @@ class Api:
     def bootstrap(self) -> dict:
         return {
             "version": __version__,
+            "build": BUILD,
             "settings": self._s.all(),
             "options": {
                 "languages": LANGUAGES,

@@ -236,7 +236,8 @@ function renderSideStatus() {
   const label = { idle: "Ready", recording: "Listening", working: "Transcribing", model: "Preparing model", loading: "Starting", error: "Needs attention" }[l.state];
   const p = l.project && l.project.name ? l.project : activeProject();
   $("#side-status").innerHTML = `<div class="row" style="gap:8px"><span class="dot ${cls}"></span><b>${label}</b></div>
-    <div style="color:var(--muted)">${esc(p.name)} · ${esc((S.options.languages || {})[l.language || p.language] || "")}<br>Offline on this laptop</div>`;
+    <div style="color:var(--muted)">${esc(p.name)} · ${esc((S.options.languages || {})[l.language || p.language] || "")}<br>Offline on this laptop</div>
+    <div style="color:var(--faint);font-size:12px">Version ${esc(S.versionStr || "")}</div>`;
 }
 
 /* ---------------- views ---------------- */
@@ -654,7 +655,7 @@ async function poll() {
 
 async function boot() {
   const b = await api().bootstrap();
-  Object.assign(S, { settings: b.settings, options: b.options, projects: b.projects, stats: b.stats, last: b.last, models: b.models, dataDir: b.data_dir, versionStr: b.version });
+  Object.assign(S, { settings: b.settings, options: b.options, projects: b.projects, stats: b.stats, last: b.last, models: b.models, dataDir: b.data_dir, versionStr: `${b.version} (${b.build})` });
   renderNav(); render(); poll();
   const n = await api().cleanup_due(); if (n) window.hushtype.askCleanup(n);
 }

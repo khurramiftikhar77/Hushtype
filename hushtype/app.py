@@ -8,7 +8,7 @@ import logging.handlers
 import sys
 from pathlib import Path
 
-from hushtype import __version__
+from hushtype import BUILD, __version__
 from hushtype.cleanup import clean
 from hushtype.paths import log_path
 
@@ -132,7 +132,7 @@ def self_test(out_path: str) -> int:
             s.close()
             return n
 
-    check("version", lambda: __version__)
+    check("version", lambda: f"{__version__} ({BUILD})")
     check("ui files", lambda: [p.name for p in __import__("hushtype.paths", fromlist=["x"]).resource_path("ui").iterdir()])
     check("numpy", lambda: __import__("numpy").__version__)
     check("ctranslate2", lambda: __import__("ctranslate2").__version__)
@@ -177,7 +177,7 @@ def run_app(background: bool) -> None:
     engine = default_engine(settings, store, on_state=lambda s: gui and gui.on_engine_state(s))
     gui = Gui(settings, store, engine, start_hidden=background)
     instance.listen(gui.show_main)
-    log.info("Hushtype %s starting", __version__)
+    log.info("Hushtype %s (%s) starting", __version__, BUILD)
     gui.run()
 
 
@@ -189,7 +189,7 @@ def main() -> None:
     parser.add_argument("--list-devices", action="store_true", help="list microphones and exit")
     parser.add_argument("--mic-test", action="store_true", help="record 5 seconds, show level, save WAV, transcribe")
     parser.add_argument("--self-test", metavar="OUT", help="check the installation and write a report to OUT")
-    parser.add_argument("--version", action="version", version=f"Hushtype {__version__}")
+    parser.add_argument("--version", action="version", version=f"Hushtype {__version__} ({BUILD})")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 

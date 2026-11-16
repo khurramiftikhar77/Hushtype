@@ -7,3 +7,4 @@ dist/
 *.egg-info/
 .pytest_cache/
 hushtype_mic_test.wav
+hushtype/_build.py
