@@ -1,4 +1,4 @@
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 try:  # written by the installer build (CI): "build 7, 610033e"
     from hushtype._build import BUILD

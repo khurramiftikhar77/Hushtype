@@ -112,6 +112,17 @@ body { background: var(--ground); color: var(--text); font: 14px/1.5 var(--font)
 
 nav { flex: 0 0 236px; border-radius: 26px; padding: 22px 14px; display: flex; flex-direction: column; gap: 26px; box-shadow: var(--shine), 0 24px 60px var(--shadow); }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; font: 700 20px var(--display); letter-spacing: -.01em; }
+.themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: -10px; }
+.themes button { border: 1px solid var(--edge); border-radius: 12px; background: var(--w08); color: var(--muted); min-height: 34px;
+  font: 600 12.5px var(--font); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.themes button:hover { background: var(--w15); color: var(--text); }
+.themes button[aria-pressed="true"] { background: var(--solid); color: var(--solid-text); border-color: transparent; }
+.themes button.truck { border: 2px solid transparent; color: var(--text);
+  background: linear-gradient(var(--ground), var(--ground)) padding-box,
+    repeating-linear-gradient(135deg, #FF2E88 0 6px, #FFC600 6px 12px, #00B34A 12px 18px, #00A3E0 18px 24px, #E4002B 24px 30px) border-box; }
+.themes button.truck[aria-pressed="true"] { background: linear-gradient(#FFC600, #FFC600) padding-box,
+    repeating-linear-gradient(135deg, #FF2E88 0 6px, #FFC600 6px 12px, #00B34A 12px 18px, #00A3E0 18px 24px, #E4002B 24px 30px) border-box; color: #1A0B33; }
+@media (max-width: 900px) { .themes { grid-template-columns: 1fr; } .themes button span { display: none; } }
 .navlist { display: flex; flex-direction: column; gap: 4px; }
 .navlist button { all: unset; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; color: var(--muted); font-weight: 500; cursor: pointer; }
 .navlist button:hover { background: var(--w08); color: var(--text); }
@@ -326,6 +337,7 @@ kbd { font-family: var(--mono); font-size: .8em; padding: 3px 10px; border-radiu
       <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect width="30" height="30" rx="10" fill="rgba(255,255,255,0.92)"/><rect x="12" y="7" width="6" height="11" rx="3" fill="#0B1220"/><path d="M9 15a6 6 0 0 0 12 0M15 21v3" stroke="#0B1220" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
       <span>Hushtype</span>
     </div>
+    <div class="themes" id="themes" role="group" aria-label="Theme"></div>
     <div class="navlist" id="nav"></div>
     <div class="status" id="side-status"></div>
   </nav>
@@ -405,7 +417,14 @@ function applyTheme() {
 if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", applyTheme);
 
 /* ---------------- navigation ---------------- */
+const THEMES = [["system", "Auto", "◐"], ["light", "Light", "☀"], ["dark", "Dark", "☾"], ["truck", "Truck art", "🚚"]];
+function renderThemes() {
+  const cur = (S.settings && S.settings.theme) || "system";
+  $("#themes").innerHTML = THEMES.map(([k, label, ic]) =>
+    `<button type="button" data-theme-pick="${k}" class="${k === "truck" ? "truck" : ""}" aria-pressed="${cur === k}" title="${label === "Auto" ? "Follow Windows" : label}">${ic}<span>${label}</span></button>`).join("");
+}
 function renderNav() {
+  renderThemes();
   const items = [["home", "Home"], ["history", "History"], ["projects", "Projects"], ["languages", "Languages"], ["settings", "Settings"]];
   const cur = S.view === "project" ? "projects" : S.view;
   $("#nav").innerHTML = items.map(([k, label]) =>
@@ -804,7 +823,7 @@ window.hushtype = {
 
 /* ---------------- events ---------------- */
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-reconnect-mic],[data-autodetect],[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
+  const t = e.target.closest("[data-theme-pick],[data-reconnect-mic],[data-autodetect],[data-edit],[data-save-edit],[data-cancel-edit],[data-forget],[data-lang-download],[data-lang-remove],[data-lang-enable],[data-record],[data-check-update],[data-install-update],[data-open-url],[data-go],[data-lang],[data-copy],[data-copy-last],[data-del],[data-clear-all],[data-hlang],[data-new-project],[data-open-project],[data-edit-project],[data-activate],[data-ptab],[data-copy-combined],[data-toggle],[data-download],[data-test-mic],[data-rm-word],[data-add-snip],[data-rm-snip],[data-open-folder],[data-close],[data-close-backdrop]");
   if (!t) return;
   const d = t.dataset;
   if ("closeBackdrop" in d) { if (e.target === t) closeDialog(); return; }
@@ -852,6 +871,12 @@ document.addEventListener("click", async (e) => {
   if ("addSnip" in d) { const sn = { ...S.settings.snippets }; let k = "new snippet", i = 2; while (k in sn) k = `new snippet ${i++}`; sn[k] = ""; S.settings = await api().set_settings({ snippets: sn }); render(); return; }
   if (d.rmSnip) { const e2 = Object.entries(S.settings.snippets); e2.splice(Number(d.rmSnip), 1); S.settings = await api().set_settings({ snippets: Object.fromEntries(e2) }); render(); return; }
   if ("openFolder" in d) return api().open_data_folder();
+  if (d.themePick) {
+    S.settings = await api().set_settings({ theme: d.themePick });
+    applyTheme(); renderThemes();
+    if (S.view === "settings") render();
+    return toast(d.themePick === "truck" ? "Truck art on. Dekh magar pyar se 🚚" : `${THEMES.find((x) => x[0] === d.themePick)[1]} theme`);
+  }
   if ("reconnectMic" in d) { const ok = await api().reconnect_mic(); S.mics = await api().mics(); render(); return toast(ok ? "Microphone reconnected" : "No microphone found. Check that it is plugged in and allowed in Windows privacy settings."); }
   if (d.langDownload) { await api().download_language(d.langDownload); toast("Download started. You can keep working."); setTimeout(loadLanguages, 600); return; }
   if (d.langRemove) {
