@@ -123,6 +123,8 @@ nav { flex: 0 0 236px; border-radius: 26px; padding: 22px 14px; display: flex; f
 .themes button.truck[aria-pressed="true"] { background: linear-gradient(#FFC600, #FFC600) padding-box,
     repeating-linear-gradient(135deg, #FF2E88 0 6px, #FFC600 6px 12px, #00B34A 12px 18px, #00A3E0 18px 24px, #E4002B 24px 30px) border-box; color: #1A0B33; }
 @media (max-width: 900px) { .themes { grid-template-columns: 1fr; } .themes button span { display: none; } }
+.topsel { max-width: 230px; min-width: 0; text-overflow: ellipsis; }
+.topsel.mic { max-width: 260px; }
 .navlist { display: flex; flex-direction: column; gap: 4px; }
 .navlist button { all: unset; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px; color: var(--muted); font-weight: 500; cursor: pointer; }
 .navlist button:hover { background: var(--w08); color: var(--text); }
@@ -457,14 +459,24 @@ function render() {
 
 function langToggle() {
   const lang = activeProject().language;
-  const auto = lang === "auto";
   const exp = (S.options.experimental || []);
-  const choices = [...enabledLangs(), "mix"];
-  return `<div class="row" style="gap:12px">
-    <div class="row" style="gap:8px"><button type="button" class="switch" aria-pressed="${auto}" aria-label="Auto-detect language" data-autodetect></button>
-      <span class="sub" style="font-size:13px;font-weight:600;color:var(--text)">Auto-detect</span></div>
-    <div class="seg" role="group" aria-label="Language for ${esc(activeProject().name)}" style="${auto ? "opacity:.45" : ""}">
-    ${choices.map((l) => `<button type="button" data-lang="${l}" aria-pressed="${!auto && lang === l}" ${auto ? "disabled" : ""}${l === "mix" ? ' title="Several languages in one dictation. Each part between pauses gets its own language. Less accurate than one language."' : exp.includes(l) ? ' title="Experimental"' : ""}>${l === "mix" ? "Mix" : langLabel(l)}</button>`).join("")}</div></div>`;
+  const choices = ["auto", ...enabledLangs(), "mix"];
+  if (!choices.includes(lang)) choices.splice(1, 0, lang);
+  const native = S.options.native || {};
+  const label = (l) => l === "auto" ? "Auto-detect" : l === "mix" ? "Mix" : langName(l) + (native[l] ? " · " + native[l] : "") + (exp.includes(l) ? " (experimental)" : "");
+  return `<label for="home-lang" style="position:absolute;left:-9999px">Language for ${esc(activeProject().name)}</label>
+    <select id="home-lang" class="topsel" data-home-lang title="Language">${choices.map((l) => `<option value="${l}" ${lang === l ? "selected" : ""}>🌐 ${esc(label(l))}</option>`).join("")}</select>`;
+}
+function micOptions() {
+  const mics = { "": "Windows default microphone" };
+  for (const m of S.mics) mics[m.name] = m.name + (m.default ? " (Windows default)" : "");
+  if (S.settings.mic && !(S.settings.mic in mics)) mics[S.settings.mic] = S.settings.mic + " (not connected)";
+  return mics;
+}
+function micSelect() {
+  const cur = S.settings.mic || "";
+  return `<label for="home-mic" style="position:absolute;left:-9999px">Microphone</label>
+    <select id="home-mic" class="topsel mic" data-home-mic title="${esc(micOptions()[cur] || "Microphone")}">${Object.entries(micOptions()).map(([v, l]) => `<option value="${esc(v)}" ${cur === v ? "selected" : ""}>🎙 ${esc(l)}</option>`).join("")}</select>`;
 }
 function projectSelect(id = "active-project") {
   return `<label for="${id}" class="eyebrow" style="position:absolute;left:-9999px">Active project</label>
@@ -496,7 +508,7 @@ function viewHome() {
   const snippets = Object.keys(S.settings.snippets || {});
   return `
   <header class="top"><div><h1>Home</h1><p class="sub">Dictate anywhere on your PC. Everything stays on this laptop.</p></div>
-    <div class="row">${projectSelect()}${langToggle()}</div></header>
+    <div class="row" style="gap:10px">${projectSelect()}${langToggle()}${micSelect()}</div></header>
 
   <section class="glass card hero" aria-live="polite">
     <button type="button" class="orb ${orb}" id="orb" data-record aria-label="${l.state === "recording" ? "Stop recording" : "Start recording"}" title="Click to dictate here. The text is copied for you to paste.">${orbInner()}</button>
@@ -691,9 +703,7 @@ function refreshLanguageBars() {
 
 function viewSettings() {
   const s = S.settings;
-  const mics = { "": "Windows default microphone" };
-  for (const m of S.mics) mics[m.name] = m.name + (m.default ? " (Windows default)" : "");
-  if (s.mic && !(s.mic in mics)) mics[s.mic] = s.mic + " (not connected)";
+  const mics = micOptions();
   const t = S.test;
   return `<header class="top"><div><h1>Settings</h1><p class="sub">Changes are saved right away.</p></div></header>
   <section class="glass card" aria-labelledby="h-mic"><h2 id="h-mic">Microphone</h2>
@@ -912,6 +922,16 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("change", async (e) => {
   const t = e.target;
   if (t.matches("[data-active-project]")) { await api().set_active_project(Number(t.value)); await refreshData(); render(); return toast(`Active project: ${activeProject().name}`); }
+  if (t.matches("[data-home-lang]")) {
+    const v = t.value;
+    if (v === "auto") await api().set_autodetect(true); else await api().set_language(v);
+    await refreshData(); render();
+    return toast(v === "auto" ? "Auto-detect: Hushtype hears which language you speak" : `${activeProject().name}: ${S.options.languages[v]}`);
+  }
+  if (t.matches("[data-home-mic]")) {
+    S.settings = await api().set_settings({ mic: t.value }); render();
+    return toast(`Microphone: ${t.value || "Windows default"}`);
+  }
   if (t.dataset.set) {
     let v = t.value; if (t.dataset.set === "review_days" || t.dataset.set === "max_seconds") v = Number(v);
     S.settings = await api().set_settings({ [t.dataset.set]: v });
@@ -940,13 +960,17 @@ document.addEventListener("input", (e) => {
 async function refreshData() {
   const r = await api().stats();
   S.stats = r.stats; S.last = r.last; S.projects = r.projects; S.settings = r.settings;
+  if (!S.mics.length && !S.micsAsked) { S.micsAsked = true; loadMics(); }
+}
+function loadMics() {
+  return api().mics().then((m) => { const had = S.mics.length; S.mics = m; if (!had && m.length && (S.view === "settings" || S.view === "home")) render(); });
 }
 async function refreshModels() { S.models = await api().models(); if (S.view === "settings") render(); }
 
 let meterTimer = null;
 function startMeter() {
   if (meterTimer) return;
-  api().mics().then((m) => { const had = S.mics.length; S.mics = m; if (!had && m.length && S.view === "settings") render(); });
+  loadMics();
   meterTimer = setInterval(async () => { const el = $("#meter"); if (!el) return; const lvl = await api().mic_level(); el.style.width = Math.round(lvl * 100) + "%"; }, 120);
 }
 function stopMeter() { clearInterval(meterTimer); meterTimer = null; }

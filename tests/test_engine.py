@@ -155,6 +155,8 @@ def test_toggle_language_and_repaste(env):
     eng.toggle_language()
     assert store.project(1)["language"] == "pa"
     eng.toggle_language()
+    assert store.project(1)["language"] == "de"
+    eng.toggle_language()
     assert store.project(1)["language"] == "mix"
     eng.toggle_language()
     assert store.project(1)["language"] == "auto"
@@ -387,6 +389,8 @@ def test_punjabi_uses_urdu_model_and_cycles(env):
     assert eng.model_name("pa") == settings["ur_model"]
     model = eng.get_model("pa")
     assert eng.get_model("ur") is model  # one shared model, loaded once
+    eng.toggle_language()
+    assert store.project(1)["language"] == "de"
     eng.toggle_language()
     assert store.project(1)["language"] == "mix"
     eng.toggle_language(); eng.toggle_language(); eng.toggle_language(); eng.toggle_language()

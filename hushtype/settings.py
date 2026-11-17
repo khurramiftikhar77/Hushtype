@@ -17,7 +17,7 @@ from hushtype.paths import settings_path
 
 log = logging.getLogger(__name__)
 
-LANGUAGES = {"auto": "Auto", "mix": "Mix", "en": "English", "ur": "Urdu", "pa": "Punjabi", "hi": "Hindi",
+LANGUAGES = {"auto": "Auto", "mix": "Mix", "en": "English", "ur": "Urdu", "pa": "Punjabi", "de": "German", "hi": "Hindi",
              "ar": "Arabic", "fa": "Persian", "ps": "Pashto", "sd": "Sindhi"}
 NATIVE_NAMES = {"ur": "اردو", "pa": "پنجابی", "hi": "हिन्दी", "ar": "العربية", "fa": "فارسی",
                 "ps": "پښتو", "sd": "سنڌي"}
@@ -66,7 +66,7 @@ MODEL_BYTES = {
     "small": 484_000_000, "medium": 1_530_000_000, "large-v3-turbo": 1_620_000_000,
     "Khubaib01/whisper-small-urdu-int8-ct2": 250_000_000,
 }
-SETTINGS_VERSION = 3
+SETTINGS_VERSION = 4
 
 HOTKEYS = {
     "alt_r+space": "Right Alt + Space",
@@ -92,7 +92,7 @@ DEFAULTS: dict = {
     "ur_model": "large-v3-turbo",
     "detect_model": "base",  # language detector for Auto
     "auto_other": "ur",  # Auto: Urdu-sounding speech is written as Urdu ("ur") or Punjabi ("pa")
-    "languages_enabled": ["en", "ur", "pa"],  # shown in the language switch
+    "languages_enabled": ["en", "ur", "pa", "de"],  # shown in the language list on Home
     "models": {},  # model for languages other than English/Urdu, e.g. {"ar": "large-v3-turbo"}
     "beam_size": 5,
     "cpu_threads": 0,
@@ -161,6 +161,9 @@ class Settings:
             # v3: dictations are only copied by default; you paste with Ctrl+V.
             self._data["auto_paste"] = False
             self._data["keep_on_clipboard"] = True
+        if version < 4 and "de" not in self._data["languages_enabled"]:
+            # v4: German joins the language list.
+            self._data["languages_enabled"] = list(self._data["languages_enabled"]) + ["de"]
         self._data["settings_version"] = SETTINGS_VERSION
 
     def __getitem__(self, key: str):

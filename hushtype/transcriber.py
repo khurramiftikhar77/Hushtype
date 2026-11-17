@@ -29,6 +29,7 @@ PROMPTS = {
     "ur": "السلام علیکم، آپ کیسے ہیں؟ میں ٹھیک ہوں، شکریہ۔ کل ملاقات کرتے ہیں۔",
     # Pakistani Punjabi in Shahmukhi, mixed with Urdu the way people speak it.
     "pa": "السلام علیکم، کی حال اے؟ میں ٹھیک آں، تسی سناؤ۔ کل ملدے آں، فیر گل کراں گے۔ بہت شکریہ جی۔",
+    "de": "Hallo, danke für die Nachricht. Ich habe es gelesen und stimme zu. Sollen wir am Montag sprechen?",
     "hi": "नमस्ते, आप कैसे हैं? मैं ठीक हूँ, धन्यवाद। कल मिलते हैं।",
     "ar": "مرحباً، كيف حالك؟ أنا بخير، شكراً. نلتقي غداً.",
     "fa": "سلام، حال شما چطور است؟ من خوبم، ممنون. فردا همدیگر را می‌بینیم.",
