@@ -668,7 +668,7 @@ function langCard(L) {
   const status = L.loading ? (d ? "Downloading" : "Loading") : L.on_disk ? "Installed" : "Not downloaded";
   const statusChip = `<span class="chip" style="${L.on_disk ? "background:rgba(45,212,191,.25)" : ""}">${status}</span>`;
   const shared = L.shared_with.length ? `<span class="sub" style="font-size:12.5px">Same model as ${L.shared_with.map(esc).join(", ")}</span>` : "";
-  const note = L.uses_urdu_model ? '<span class="sub" style="font-size:12.5px">Uses the Urdu model, written in Urdu script</span>' : "";
+  const note = L.uses_urdu_model ? '<span class="sub" style="font-size:12.5px">Uses the Urdu download. Always written in Shahmukhi (Urdu script)</span>' : "";
   const bar = `<div id="lbar-${L.code}">${d ? downloadBar(L.slot) : ""}</div>`;
   const model = L.uses_urdu_model ? "" : `<label for="lm-${L.code}" style="position:absolute;left:-9999px">Quality for ${esc(L.name)}</label>
       <select id="lm-${L.code}" data-lang-model="${L.code}" style="flex:1 1 200px;min-width:0;max-width:100%">${Object.entries(L.options).map(([k, v]) => `<option value="${k}" ${k === L.model ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
@@ -678,6 +678,10 @@ function langCard(L) {
   return `<div class="glass card" style="gap:12px">
     <div class="row spread"><h2 style="font:600 18px var(--display)">${langLabel(L.code)}</h2><div class="row" style="gap:6px">${exp}${statusChip}</div></div>
     <div class="row" style="gap:10px"><div class="row" style="gap:8px;flex:0 0 auto"><button type="button" class="switch" aria-pressed="${L.enabled}" aria-label="Show ${esc(L.name)} in the language switch" data-lang-enable="${L.code}"></button><span class="sub" style="font-size:13px">In language switch</span></div>${model}</div>
+    ${L.code === "pa" ? `<div class="row" style="gap:10px"><label for="pa-listen" class="sub" style="font-size:13px;flex:0 0 auto">Listen to Punjabi as</label>
+      <select id="pa-listen" data-set="punjabi_listener" style="flex:1 1 220px;min-width:0;max-width:100%">
+        <option value="urdu" ${S.settings.punjabi_listener !== "punjabi" ? "selected" : ""}>Urdu model with a Punjabi hint (recommended)</option>
+        <option value="punjabi" ${S.settings.punjabi_listener === "punjabi" ? "selected" : ""}>Punjabi model, converted to Shahmukhi (experimental, may cut long sentences)</option></select></div>` : ""}
     ${note}${shared}${bar}
     <div class="row">${actions}</div></div>`;
 }

@@ -100,3 +100,20 @@ def test_email_layout_only_when_asked():
 
 def test_email_signoff_without_name():
     assert clean("Hello team, the report is attached. Thanks", email=True) == "Hello team,\n\nThe report is attached.\n\nThanks,"
+
+
+def test_gurmukhi_to_shahmukhi():
+    from hushtype.shahmukhi import to_shahmukhi
+    assert to_shahmukhi("ਕੀ ਹਾਲ ਏ? ਮੈਂ ਠੀਕ ਆਂ।") == "کی حال اے؟ میں ٹھیک آں۔"
+    assert to_shahmukhi("ਮੈਨੂੰ ਪਾਣੀ ਚਾਹੀਦਾ ਏ") == "مینوں پانی چاہیدا اے"
+    assert to_shahmukhi("ਉਹ ਘਰ ਗਿਆ ਸੀ") == "اوہ گھر گیا سی"
+    assert to_shahmukhi("ਕੱਲ੍ਹ ਮਿਲਦੇ ਆਂ") == "کل ملدے آں"
+    assert to_shahmukhi("Hello ਯਾਰ, LinkedIn") == "Hello یار، LinkedIn"
+    assert to_shahmukhi("already اردو text") == "already اردو text"
+
+
+def test_punjabi_helper_words():
+    from hushtype.cleanup import clean
+    assert clean("وہ گھر گیا تھا اور میں بھی آیا ہوں، اے کی ہے؟", language="pa") == "وہ گھر گیا سی اور میں وی آیا ہوں، اے کی اے؟"
+    assert clean("یہ نہیں ہے", language="ur") == "یہ نہیں ہے"  # Urdu is left alone
+    assert clean("ہےکل", language="pa") == "ہےکل"  # only whole words

@@ -171,6 +171,18 @@ def format_email(text: str) -> str:
     return text
 
 
+# Punjabi is heard with the Urdu model, which tends to write Urdu helper words
+# for spoken Punjabi ones ("ہے" for "اے"). Only words that never mean something
+# else in Punjabi are swapped.
+PUNJABI_WORDS = {"ہے": "اے", "ہیں": "نیں", "بھی": "وی", "تھا": "سی", "تھی": "سی", "تھے": "سن",
+                 "تھیں": "سن", "کیوں کہ": "کیونکہ"}
+_PUNJABI_RE = re.compile(r"(?<!\w)(" + "|".join(sorted(map(re.escape, PUNJABI_WORDS), key=len, reverse=True)) + r")(?!\w)")
+
+
+def punjabi_words(text: str) -> str:
+    return _PUNJABI_RE.sub(lambda m: PUNJABI_WORDS[m.group(1)], text)
+
+
 def clean(text: str, *, language: str = "en", fillers: bool = True, capitalize: bool = True,
           spoken_commands: bool = True, replacements: dict[str, str] | None = None,
           snippets: dict[str, str] | None = None, self_correct: bool = True,
@@ -190,6 +202,8 @@ def clean(text: str, *, language: str = "en", fillers: bool = True, capitalize: 
         text = remove_fillers(text)
     if self_correct and english:
         text = apply_self_corrections(text)
+    if language == "pa":
+        text = punjabi_words(text)
     if replacements:
         text = apply_replacements(text, replacements)
     text = _SPACE_AROUND_NL.sub("\n", text)

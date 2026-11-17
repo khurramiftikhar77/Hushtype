@@ -91,6 +91,10 @@ DEFAULTS: dict = {
     "en_model": "small.en",
     "ur_model": "large-v3-turbo",
     "detect_model": "base",  # language detector for Auto
+    # Punjabi: "urdu" listens with the Urdu model and a Punjabi prompt (most accurate
+    # in tests); "punjabi" (experimental) listens as Punjabi, whose Gurmukhi text is
+    # converted to Shahmukhi, but Whisper often cuts long Punjabi sentences short.
+    "punjabi_listener": "urdu",
     "auto_other": "ur",  # Auto: Urdu-sounding speech is written as Urdu ("ur") or Punjabi ("pa")
     "languages_enabled": ["en", "ur", "pa", "de"],  # shown in the language list on Home
     "models": {},  # model for languages other than English/Urdu, e.g. {"ar": "large-v3-turbo"}

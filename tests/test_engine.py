@@ -43,7 +43,7 @@ class FakeModel:
 
     def transcribe(self, audio, language, vocabulary=None):
         return {"en": "um, thanks for sharing this, new paragraph. Khurram",
-                "ur": "السلام علیکم", "pa": "کی حال اے", "ar": "مرحبا"}[language]
+                "ur": "السلام علیکم", "pa": "کی حال اے", "pa_gurmukhi": "کی حال اے", "ar": "مرحبا"}[language]
 
 
 class FakeHotkeys:
@@ -400,7 +400,7 @@ def test_punjabi_uses_urdu_model_and_cycles(env):
 def test_punjabi_dictation_saved_as_punjabi(env):
     eng, settings, store, pasted, *_ = env
     model = eng.get_model("pa")
-    model.transcribe = lambda audio, language, vocabulary=None: {"en": "hello", "ur": "اردو", "pa": "کی حال اے"}[language]
+    model.transcribe = lambda audio, language, vocabulary=None: {"en": "hello", "ur": "اردو", "pa": "کی حال اے", "pa_gurmukhi": "کی حال اے"}[language]
     store.update_project(1, language="pa")
     eng.begin_recording(); eng.finish_recording(); run(eng)
     assert pasted[-1] == "کی حال اے "
@@ -458,3 +458,13 @@ def test_boost_quiet_only_raises_quiet_audio():
     assert abs(float(np.max(np.abs(boost_quiet(quiet)))) - 0.5) < 0.01
     assert boost_quiet(loud) is loud
     assert boost_quiet(np.zeros(100, dtype=np.float32)).max() == 0
+
+
+def test_punjabi_listener_choice(env):
+    eng, settings, *_ = env
+    assert eng._listen_as("pa") == "pa"  # default: the Urdu model with a Punjabi prompt
+    assert eng._listen_as("ur") == "ur"
+    settings.update({"punjabi_listener": "punjabi"})
+    assert eng._listen_as("pa") == "pa_gurmukhi"
+    settings.update({"punjabi_listener": "punjabi", "ur_model": "Khubaib01/whisper-small-urdu-int8-ct2"})
+    assert eng._listen_as("pa") == "pa"  # the Urdu-only model can't hear Punjabi as Punjabi

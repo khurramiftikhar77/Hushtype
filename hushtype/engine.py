@@ -346,6 +346,15 @@ class Engine:
             pieces[-1] = np.concatenate([pieces[-1], last])
         return pieces
 
+    def _listen_as(self, language: str) -> str:
+        """Punjabi is heard as Punjabi (then written in Shahmukhi) unless set to the Urdu way.
+        The Urdu-tuned fast model only knows Urdu, so it always listens as Urdu."""
+        from hushtype.settings import URDU_FAST
+        if (language == "pa" and self.settings["punjabi_listener"] == "punjabi"
+                and self.model_name("pa") != URDU_FAST):
+            return "pa_gurmukhi"
+        return language
+
     def detect_language(self, audio) -> str:
         """Auto mode: English or (Urdu / Punjabi, as chosen in Settings)."""
         return self._choose_language(self.get_model("detect").detect(audio))
@@ -567,7 +576,7 @@ class Engine:
         whole = len(parts) == 1
         raws, texts = [], []
         for lang, piece in parts:
-            raw_i = self.get_model(lang).transcribe(piece, lang, vocabulary=vocabulary)
+            raw_i = self.get_model(lang).transcribe(piece, self._listen_as(lang), vocabulary=vocabulary)
             raws.append(raw_i)
             texts.append(clean(raw_i, language=lang, fillers=p["remove_fillers"], capitalize=p["capitalize"],
                                spoken_commands=s["spoken_commands"], replacements=replacements,

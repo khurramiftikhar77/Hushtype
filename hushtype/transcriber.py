@@ -29,6 +29,8 @@ PROMPTS = {
     "ur": "السلام علیکم، آپ کیسے ہیں؟ میں ٹھیک ہوں، شکریہ۔ کل ملاقات کرتے ہیں۔",
     # Pakistani Punjabi in Shahmukhi, mixed with Urdu the way people speak it.
     "pa": "السلام علیکم، کی حال اے؟ میں ٹھیک آں، تسی سناؤ۔ کل ملدے آں، فیر گل کراں گے۔ بہت شکریہ جی۔",
+    # Punjabi heard as Punjabi: Whisper writes Gurmukhi, converted to Shahmukhi after.
+    "pa_gurmukhi": "ਸਤ ਸ੍ਰੀ ਅਕਾਲ ਜੀ, ਕੀ ਹਾਲ ਏ? ਮੈਂ ਠੀਕ ਆਂ, ਤੁਸੀਂ ਸੁਣਾਓ। ਕੱਲ੍ਹ ਮਿਲਦੇ ਆਂ, ਫੇਰ ਗੱਲ ਕਰਾਂਗੇ। ਬਹੁਤ ਸ਼ੁਕਰੀਆ।",
     "de": "Hallo, danke für die Nachricht. Ich habe es gelesen und stimme zu. Sollen wir am Montag sprechen?",
     "hi": "नमस्ते, आप कैसे हैं? मैं ठीक हूँ, धन्यवाद। कल मिलते हैं।",
     "ar": "مرحباً، كيف حالك؟ أنا بخير، شكراً. نلتقي غداً.",
@@ -38,7 +40,7 @@ PROMPTS = {
 }
 # Whisper language code used for each Hushtype language. Whisper writes Punjabi
 # in Gurmukhi, so Punjabi is decoded as Urdu (Urdu script) with a Punjabi prompt.
-WHISPER_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur"}
+WHISPER_LANGUAGE = {"en": "en", "ur": "ur", "pa": "ur", "pa_gurmukhi": "pa"}
 
 
 def model_on_disk(model_name: str) -> bool:
@@ -151,6 +153,9 @@ class Transcriber:
                     continue
                 kept.append(s.text.strip())
         text = " ".join(kept).strip()
+        if language == "pa_gurmukhi":
+            from hushtype.shahmukhi import to_shahmukhi
+            text = to_shahmukhi(text)
         log.info("Transcribed %.1fs of %s audio in %.1fs", len(audio) / 16000, language,
                  time.perf_counter() - t0)
         return text
